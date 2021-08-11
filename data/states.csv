@@ -1,0 +1,51 @@
+state,region,division,urban_index,lean,poll_2020_D,poll_2020_R,pct_bach
+Alabama,South,East South Central,4.17,R+27,36,58,26.3
+Alaska,West,Pacific,3.79,R+15,46,47,30.2
+Arizona,West,Mountain,4.91,R+9,49,46,30.2
+Arkansas,South,West South Central,4.02,R+24,45,47,23.3
+California,West,Pacific,5.29,D+24,59,32,35
+Colorado,West,Mountain,4.84,D+1,49,43,42.7
+Connecticut,Northeast,New England,4.96,D+11,56,33,39.8
+Delaware,South,South Atlantic,4.78,D+14,58,37,33.2
+Florida,South,South Atlantic,4.98,R+5,50,45,30.7
+Georgia,South,South Atlantic,4.58,R+12,46,48,32.5
+Hawaii,West,Pacific,4.81,D+36,56,29,33.6
+Idaho,West,Mountain,4.17,R+35,34.48,59.66,28.7
+Illinois,Midwest,East North Central,5.05,D+13,52.9,39.8,35.8
+Indiana,Midwest,East North Central,4.52,R+18,38,55,26.9
+Iowa,Midwest,West North Central,4.17,R+6,45,50,29.3
+Kansas,Midwest,West North Central,4.4,R+23,42,52,34
+Kentucky,South,East South Central,4.25,R+23,35,55,25.1
+Louisiana,South,West South Central,4.42,R+17,42,48,25
+Maine,Northeast,New England,3.92,D+5,53,39,33.2
+Maryland,South,South Atlantic,5.09,D+23,62,30,40.9
+Massachusetts,Northeast,New England,5.14,D+29,63,27,45
+Michigan,Midwest,East North Central,4.69,D+1,42,41,30
+Minnesota,Midwest,West North Central,4.54,D+2,48.8,40.1,37.3
+Mississippi,South,East South Central,3.87,R+15,43,53,22.3
+Missouri,Midwest,West North Central,4.43,R+19,42.5,49.6,30.2
+Montana,West,Mountain,3.68,R+18,42,49,33.6
+Nebraska,Midwest,West North Central,4.43,R+24,40.76,57.13,33.2
+Nevada,West,Mountain,5.11,R+1,52,41,25.7
+New Hampshire,Northeast,New England,4.31,R+2,54.6,45.4,37.6
+New Jersey,Northeast,Middle Atlantic,5.31,D+13,57.89,39.63,41.2
+New Mexico,West,Mountain,4.3,D+7,54,39,27.7
+New York,Northeast,Middle Atlantic,5.45,D+22,61,29,37.8
+North Carolina,South,South Atlantic,4.48,R+5,48,47,32.3
+North Dakota,Midwest,West North Central,3.93,R+33,37,51,30.4
+Ohio,Midwest,East North Central,4.72,R+7,45,50,29.3
+Oklahoma,South,West South Central,4.32,R+34,35.2,59.6,26.2
+Oregon,West,Pacific,4.65,D+9,51,39,34.5
+Pennsylvania,Northeast,Middle Atlantic,4.84,R+1,45,41,32.3
+Rhode Island,Northeast,New England,5.09,D+26,62.21,37.5,34.8
+South Carolina,South,South Atlantic,4.39,R+17,43,47,29.6
+South Dakota,Midwest,West North Central,3.79,R+31,40.74,58.23,29.7
+Tennessee,South,East South Central,4.43,R+28,42,51,28.7
+Texas,South,West South Central,4.85,R+17,46,46,30.8
+Utah,West,Mountain,4.76,R+31,35,53,34.8
+Vermont,Northeast,New England,3.84,D+24,55.73,32.46,38.7
+Virginia,South,South Atlantic,4.74,EVEN,53,39,39.6
+Washington,West,Pacific,4.83,D+12,58,36,37
+West Virginia,South,South Atlantic,3.96,R+30,31,66,21.1
+Wisconsin,Midwest,East North Central,4.43,R+1,50,42,31.3
+Wyoming,West,Mountain,3.59,R+47,33.86,64.92,29.1
