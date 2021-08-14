@@ -1,0 +1,336 @@
+---
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message=FALSE, warning=FALSE)
+library(tidyverse)
+library(lubridate)
+source("C:/stat_240/scripts/viridis.R")
+source("C:/stat_240/scripts/ggprob.R")
+source("C:/stat_240/scripts/beta-binomial.R")
+```
+
+## Assignment 9
+
+#### Due Friday, November 6, 11:59 PM CT
+
+### Kyle yeo
+
+
+### Files
+
+- The data are in files *geissler.csv* and *french-children.csv*. 
+
+- R Code from lecture for the beta-binomial model is in the file *beta-binomial.R*.
+
+### Problems
+
+### 1
+
+> Summarize the Geissler data set for families of size of 5 (which is the distribution of boys and girls among the first five children in families with six or more children in Saxony over the time period) with the following calculations:
+find the number of families, total number of children, number of boys (sex assigned at birth), number of girls, the proportion of each, and the observed sex ratio (boys per 100 girls).
+Display the summary.
+
+```{r}
+geissler <- read.csv("C:/stat_240/data/geissler.csv")
+
+geissler1 <- geissler %>%
+  filter(size == 5) %>%
+  summarize(
+    familiy_size = sum(freq),
+    boys = sum(boys*freq),
+    girls = sum(girls*freq),
+    total = sum(size*freq),
+    p_boy = boys/total,
+    p_girl = girls/total,
+    sex_ratio = 100*boys/girls
+    
+  )
+geissler1
+```
+
+### 2
+
+> Fit the simple binomial and beta-binomial models to this data for the number of boys in the family using maximum likelihood.
+Describe how the assumptions between the two models differ,
+and how to interpret what this difference implies about the distributions of the numbers of boys and girls among the first five children in this population.
+Report all parameter estimates for each model and the log-likelihood of each model.
+
+```{r}
+
+size5 <- geissler %>%
+  filter(size==5) %>%
+  mutate(prop = freq/sum(freq)) %>%
+  mutate(boys = boys*freq)
+
+
+x5 <- size5 %>%
+  pull(freq)
+## Simple binomial
+p_hat <- sum(x5*(0:5))/(5*sum(x5))
+p_hat
+logl_1 <- sum(x5*dbinom(0:5,5,p_hat,log=TRUE))
+logl_1
+
+## Beta binomial
+bb_5 <- mlebb(x5)
+bb_5
+
+
+
+
+```
+
+
+For simple binomial, p_hat = 0.5141315, logl_1 = -146590.6
+For beta binomial, alpha = 71.1459, beta = 67.23828, logl = -146566.4
+
+Basic assumptions for binomial model are followings:
+1. Binary outcomes for each trial(boy and girl)
+2. Independence (sex of early trials do not affect subsequent ones)
+3. Fixed sample size of 5
+4. Same probability of a boy for each child.
+
+However, assumption for beta binomial is different from above i.e. the probability is not fixed and it has different value of p for each family. Therefore, we need to consider different values of p in each family when we use beta binomial model, then the assumption for simp   le binomial works within each families.
+To sum up, we need to keep in mind that for beta binomial model, the distributions of the numbers of boys and girls among the first five children in this population has different p values for each family.
+
+
+
+### 3
+
+> Using results from the previous problem, test the null hypothesis of the binomial model versus the alternative hypothesis of the beta-binomial model.
+Report a test statistic, the sampling distribution of the test statistic assuming the null hypothesis is true,
+and a numerical estimate of the p-value.
+Interpret the results of this hypothesis text in context.
+For the fitted beta-binomial model,
+graph the beta density using the estimated parameter values.
+Interpret the meaning of this graph in context.
+
+
+```{r}
+G <- -2 * (logl_1 - bb_5$logl)
+G
+
+
+p_value_1 <- 1 - pchisq(G,1)
+p_value_1
+
+
+gbeta(alpha = 71.1495,beta = 67.23828,a=0.3,b=0.7)
+
+
+
+```
+
+Sampling distribution of the test statistic : 48.40527 p-value : 3.466338e-12 P is small enough to reject the null hypothesis, therefore, beta binomial method might fit better. The sampling distribution of the test statistic G is approximately chi-squared with one degree of freedom.
+
+
+
+
+### 4
+
+> Using the French family data in the file *french-children.csv*, make the following calculations.
+
+>Be sure to read the *Course Notes* description of the data as the format is different than the Geissler data.
+Specifically, each row specifies the number of families (in 1000s) with a child born given the previous number of boys and girls in the family, and the proportion of boys among those children.
+Each new child is only counted once and each family will appear each time there is a new child added.
+
+- Find the total number of families, boys, girls, children, and average number of children per family.
+- Find the proportion of boys, the proportion of girls, and the sex ratio (# of boys per 100 girls, sexes assigned at birth).
+- Determine the number of children for each birth order (first, second, third, and so on) in the data set and count the number of boys and girls in each.
+- Calculate the proportion of girls for each birth order and plot these proportions by birth order. Use the size attribute to signify the number of children.
+    - Is there a pattern in this data?
+
+```{r}
+french_familiy <- read_csv("C:/stat_240/data/french-children.csv")
+
+
+french4 <- french_familiy %>%
+  mutate(families = 1499*1000,
+         num_boys = count*1000*p_boy,
+         total_boys = sum(num_boys),
+         num_girls = count*1000*(1-p_boy),
+         total_girls = sum(num_girls),
+         avg = (total_boys+total_girls)/families) %>%
+  mutate(p_boy2 = total_boys/(total_boys+total_girls),
+         p_girl = total_girls/(total_boys+total_girls),
+         sex_ratio = (total_boys/total_girls)*100) %>%
+  mutate(birth_order = case_when(girls+boys == 0 ~ "first",
+                                 girls+boys == 1 ~ "second",
+                                 girls+boys == 2 ~ "third",
+                                 girls+boys == 3 ~ "fourth",
+                                 girls+boys == 4 ~ "fifth",
+                                 girls+boys == 5 ~ "sixth",
+                                 girls+boys == 6 ~ "seventh",
+                                 girls+boys == 7 ~ "eighth",
+                                 girls+boys == 8 ~ "ninth",
+                                 girls+boys == 9 ~ "tenth",
+                                 girls+boys == 10 ~ "eleventh"))
+french4
+
+final_french <- french4 %>%
+  group_by(birth_order) %>%
+  summarise(total_c = sum(num_girls + num_boys),
+            num_girls = sum(num_girls),
+            num_boys = sum(num_boys),
+            p_girl = num_girls/total_c) %>%
+  arrange(desc(total_c))
+  
+final_french
+
+
+
+
+ggplot(final_french) +
+  geom_point(aes(x = factor(final_french$birth_order, levels = c("first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth", "ninth", "tenth","eleventh")), y=p_girl, size = total_c)) +
+  xlab("birth_order") +
+  ylab("proportion of girls") +
+  ggtitle("The relationship between birth order and proportion of girls")
+  
+
+```
+As birth_order increases, the proportion of girls tends to increases until the ninth birth order, while the number of children tends to decreases.
+
+
+### 5
+
+> Using the French family data in the file *french-children.csv*, make the following calculations.
+
+- Determine the number of families with each number of children represented in the data and report these results in a table.
+    - The table will have two columns, one for the number of children and one for the number of families with that number of children.
+- Create a table with the same structure as the Geissler data with columns `boys`, `girls`, `size`, and `n` so that each row counts the number of families (`n`) in the data set with that number of boys and girls, where size is the number of children in the family. Display the subset of the table for all cases where the number of boys and girls are the same.
+
+    - *(Hint: This last part is tricky. For example, the number of families with exactly 2 boys and 2 girls IS EQUAL TO the number of families who had a boy as the 4th child when they previously had one boy and two girls PLUS the number of families who had a girl as the fourth child when they previously had two boys and one girl MINUS the number of families that previously had two boys and two girls that had another child. A for loop may come in handy.) *
+
+```{r}
+
+
+french_5_a <- french4 %>%
+  mutate(n = girls+boys+1) %>%
+  group_by(n)%>%
+  mutate(count = sum(count))%>%
+  select(count,n)%>%
+  distinct()
+
+french_5_a$num = c(abs(diff(french_5_a$count)),8)
+french_5 <- french_5_a %>%
+  select(-count)
+french_5
+
+
+
+french_5_b <- french_familiy %>%
+  mutate(families = 1499*1000,
+         num_b = count*1000*p_boy,
+         num_g = count*1000*(1-p_boy),
+         total_b = sum(num_b),
+         total_g = sum(num_g),
+         avg = (total_b+total_g)/families,
+         p_boy = total_b/(total_b+total_g),
+         p_girl = total_g/(total_b+total_g),
+         sex_ratio = (total_b/total_g)*100, 
+         children = (num_b+num_g))
+
+french_5_b
+
+
+
+french_5_c <- geissler %>%
+  select(girls,boys)%>%
+  mutate(size = boys+girls) %>%
+  mutate(n = 0)
+
+french_5_c
+
+
+
+
+for (i in (1:90)){
+  number_b = french_5_c$boys[i]
+  number_g = french_5_c$girls[i]
+  a = filter(french_5_b, 
+             boys == (number_b - 1),
+             girls == number_g)%>%
+    pull(num_b)
+  b = filter(french_5_b, 
+             boys == (number_b),
+             girls == (number_g-1))%>%
+    pull(num_g)
+  c = filter(french_5_b, 
+             boys == (number_b),
+             girls == (number_g))%>%
+    pull(children)
+  
+  children = 0
+  if(length(a)>0)
+    children = a + children
+  if(length(b)>0)
+    children = b + children
+  if(length(c)>0)
+    children = children - c
+  french_5_c$n[i] = children
+}
+
+french_5_c %>%
+  filter(n>0)
+
+
+
+
+french_5_d <- french_5_c[ which(french_5_c$girls == french_5_c$boys), ]
+
+french_5_d
+
+```
+
+### 6
+
+> Using the data set of single-birth French families,
+determine for families with `b` boys and `g` girls the proportion of families which have a subsequent child.
+This will be a table with columns `boys`, `girls`, and a column for the proportion.
+Display a subset of these proportions in a reshaped table
+with one row for the number of previous girls (ranging from 0 to 4)
+and one column for the number of previous boys (also ranging from 0 to 4).
+Do you agree or disagree with this statement: families with more boys than girls are more likely to continue to have additional children.
+Use evidence from the displayed table to justify your response.
+
+
+
+```{r}
+french_6_a <- french_familiy %>%
+  mutate(children = count*1000)
+
+french_6_a
+
+
+
+french_6_b <- french_6_a %>%
+  select(boys,girls,children)
+french_6_b
+
+
+french_6_c <- french_5_c%>%
+  select(-size)
+french_6_c
+
+
+french_6_d <- inner_join(french_6_b, french_6_c)%>%
+  mutate(x = children/(children+n))%>%
+  select(boys,girls,x)
+french_6_d
+
+
+french_6_e <- french_6_d %>%
+  pivot_wider(names_from = boys, values_from =x)%>%
+  select(1,8,2,3,4,5)%>%
+  filter(!(girls == 5|girls == 6))
+french_6_e
+
+
+```
+
+I disagree with the statement since we can see that the only case when boy = 1 is necessary to the statement.
+
