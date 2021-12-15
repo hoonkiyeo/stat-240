@@ -1,0 +1,711 @@
+---
+title: "Wisconsin Obesity Data"
+author: "Jessi Kehe"
+output: html_document
+---
+This R Markdown document was adapted from documents created by Professor Bret Larget.
+
+### Setup details
+
+* You will need the packages `tidyverse`, `readxl`, `ggmap`, and `mapproj` for these lectures.  Make sure to install them if you haven't already.  
+
+* This assumes you have the R script `viridis.R` two steps back from the working directory (`"../../scripts/viridis.R"`).  Be sure to adjust the code if you have this script in a different location.
+
+* The following data files will be used and are assumed to be located two steps back from the working directory in a folder called `data/`.  Be sure to adjust the code if you have the data files in a different location.  
+`"../../data/Obesity+Prevalence+by+ZIP+Code+and+Age+Group,+Females.xlsx"`  
+`"../../data/Obesity+Prevalence+by+ZIP+Code+and+Age+Group,+Males.xlsx"`  
+`"../../data/wi_urban_rural.csv"`  
+`"../../data/wi_education.csv"`  
+`"../../data/wi_income.csv"`  
+`"../../data/wi_zip.csv"`
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo=TRUE,message=FALSE,warning=FALSE,cache=TRUE,autodep=TRUE,cache.comments=FALSE)
+library(tidyverse)
+library(readxl)
+## Note: this code assumes viridis.R is two steps up the file directory tree in a `scripts` folder
+source("C:/stat_240/scripts/viridis.R")
+```
+
+
+# Lecture:  Importing the Obesity data files
+
+### Obesity Data Files
+
+The Wisconsin obesity data is stored in two Excel workbooks, one for females and one for males.  
+
+The data for each sex is split across five sheets based on age ranges.  Each spread sheet has  
+
+  +  a row for each zip code  
+  +  seven columns of data (three of which are derived from counts in the other three)  
+  
+There is substantial missing data as counts are not reported if they are low by several criteria (which helps to protect patient privacy)   
+
+#### Some cautions
+
+> "These prevalence estimates are based on patient populations and reflect those who sought care from participating health care systems during 2015 and 2016. Only individuals who received care during the submitted period were included in these data, and estimates may not accurately reflect the prevalence of obesity in the Wisconsin population."
+
+  + With the missing values and the non-random sampling, we need to be careful about drawing conclusions about the population of Wisconsin from these data.
+
+> "BMI values are based on heights and weights recorded during patient encounters. There are no standard practices for height and weight measurement across health systems and clinics. Some variation may occur in height and weight measurements based on the clothing and/or shoes that a patient wore during their height and weight measurement."
+
+
+
+### Long format versus wide format
+
+There are two primary *conceptual* ways to read in and combine these data.
+
+**longer format**
+
+  - the 10 data sets are read in and stacked on top of one another
+  - add columns to specify sex and age range (for the spreadsheet/sheet combinations)
+  - a single *case* has the information for a zipcode/sex/age range combination
+
+**wider format**
+
+  - the 10 data sets are read in and combined horizontally  
+  - maintain a single row per ZIP code.
+  - columns would need to be relabeled so that each column name would also include the sex/age range from which it arose
+  
+  
+We will demonstrate reading the data into long format
+and then show how to reformat this into wide format as needed.
+
+### Read, Reformat, and Reshape Obesity Data
+
+To read data from one sheet into a single data frame
+we could do something like the following.
+
+```{r read-one}
+male_05_17 <-  read_excel(
+  "C:/stat_240/data/Obesity+Prevalence+by+ZIP+Code+and+Age+Group,+Males.xlsx",
+  sheet=3, skip=5, na=".") # Missing values indicated by a `.`
+
+male_05_17
+```
+
+- The data for males, aged 5 to 17, are on sheet 3 of the given file  
+- The first five lines of this file contain title information,  
+line six has the column names, followed by the data  
+- The data are actually in columns B through H,
+but `read_excel()` is smart enough by default to ignore empty column A.
+
+Take a quick look at these data.
+
+```{r peek}
+head(male_05_17)
+dim(male_05_17) #dimension
+```
+Observations:
+
+- given column names are not convenient  
+- lots of missing values  
+
+
+Below is code that 
+
+  (i) selects the columns with the raw data
+(we can always compute the others if desired,
+and this is safer than trusting it is accurate)    
+  (ii) then renames the columns
+
+This code uses `select()` and `rename()` from `dplyr`
+along with the select helper functions `starts_with()` and `ends_with()`
+to avoid typing the long variable names provided.
+
+We use `mutate()` to add columns `sex` and `age`
+which contain the corresponding values for this spreadsheet/sheet
+
+```{r one-reformat}
+male_05_17 <- male_05_17 %>%
+  select(starts_with("ZIP"),
+         starts_with("Number"),
+         starts_with("Population")) %>%
+  rename(zip = starts_with("ZIP"),
+         obese = ends_with("Obesity"),
+         bmi = ends_with("BMI"),
+         pop = starts_with("Population")) %>%
+  mutate(sex = "male") %>%
+  mutate(age = "5-17")
+
+head(male_05_17) # Look at first few observations
+
+rm(male_05_17) # Remove the data frame
+```
+
+#### Combining
+
+To finish creating the data set in long format,  we could copy/paste/edit the previous code  
+for all 10 sheets and then use `bind_rows()` to combine into a single data frame
+
+A better way,is to write a function for the repeated elements of code.  
+
+This results in code that is more concise,  
+easier to read, easier to edit, and more clear.  
+
+The cost is a bit of new syntax where we introduce the `for()` loop.
+
+The only parts of the previous code that vary when we read different sheets are:  
+  the file name, the sheet number, and the values for `sex` and `age`.
+
+The next function `read_and_format()` takes as arguments the name of the Excel file, a string which is either "female" or "male",  
+and an integer `i` from 1 to 5 which indicates which age range we are reading.   
+- For example, age range 1 is from 5--17 and is on sheet 3 for both the male and female workbooks.
+
+```{r read-obesity-data-function}
+read_and_format <- function(file,sex_string,i)
+{
+  age_values <- c("05-17","18-34","35-54","55-74","75-plus")
+  foo <- read_excel(file, sheet=i+2, skip=5, na=".") %>%
+    select(starts_with("ZIP"),
+         starts_with("Number"),
+         starts_with("Population")) %>%
+    rename(zip = starts_with("ZIP"),
+           obese = ends_with("Obesity"),
+           bmi = ends_with("BMI"),
+           pop = starts_with("Population")) %>%
+    mutate(sex = sex_string) %>%
+    mutate(age = age_values[i])
+  return(foo)
+}
+```
+
+After defining this function,  we write a second function  
+which uses two nested for-loops to read the data for all sexes and age ranges,  
+combining the data sets as each new one is read in.  
+
+- the outer loop goes over the two sexes  
+- the inner loop goes over the indices of the age ranges
+
+The function creates an initial empty `tibble`.
+
+Each sheet is read into a temporary data frame which is then bound (using `bind_rows()`) to the initial one until the initial one has grown
+to be the complete data frame.
+
+Note that `bind_rows()` only works when the columns are compatible.
+
+```{r read-all-obesity-function}
+read_obesity <- function()
+{
+  obesity = tibble()
+  sexes = c("female","male")
+  files = c("C:/stat_240/data/Obesity+Prevalence+by+ZIP+Code+and+Age+Group,+Females.xlsx",
+            "C:/stat_240/data/Obesity+Prevalence+by+ZIP+Code+and+Age+Group,+Males.xlsx")
+
+  for ( s in 1:2 )
+  {
+    for ( i in 1:5 )
+    {
+      temp <- read_and_format(files[s],sexes[s],i)
+      obesity <- bind_rows(obesity,temp)
+    }
+  }
+  return( obesity )
+}
+```
+
+Now call the function and save the obesity data as `obesity`.
+
+```{r read-obesity}
+obesity <- read_obesity()
+
+head(obesity)
+
+dim(obesity)
+```
+
+The long format data has advantages for many purposes.
+
+- We can easily add new columns such as  
+  + prevalence of obesity among sampled patients for each zip/sex/age combination  
+  + the total estimated number of such people in the population.
+ 
+- We can filter to select certain characteristics (only males, only one age group).
+- We can also aggregate (sum over zip codes, sexes, or whatever we want).
+
+But when it comes time to combine these data with another data set that has,
+say, the median household income by zip code,
+we may want the data in the wide format.
+
+
+
+
+
+
+
+
+
+
+# Lecture:  Importing the Rural/Urban, Education, and Economic data files
+
+### Rural/Urban Data
+
+Population counts by zip code and urban/rural.
+
+```{r rural-urban}
+ru_orig <- read_csv("C:/stat_240/data/wi_urban_rural.csv")
+ru <- read_csv("C:/stat_240/data/wi_urban_rural.csv") %>%
+  select(Id2,`Urban:`,Rural) %>%
+  rename(zip = Id2,
+         urban = `Urban:`,
+         rural = Rural) %>%
+  mutate(population = rural + urban) %>%
+  mutate(p_urban = urban/population)
+
+ru
+```
+
+### Education Data
+
+Note in the column names of `edu_orig`, these data provide estimates for a population 25 years and older. 
+This is a different age range than the obesity data.  
+
+```{r education}
+edu_orig <- read_csv("C:/stat_240/data/wi_education.csv",na=c("(X)","-"))
+edu <- edu_orig %>%
+  select(Id2, #Zipcode
+         contains("bachelor's degree or higher")) %>%
+  rename(zip = Id2,
+         pct_m_bach = `Percent Males; Estimate; Percent bachelor's degree or higher`,
+         pct_f_bach = `Percent Females; Estimate; Percent bachelor's degree or higher`) %>%
+  select(-contains("Percent")) 
+
+edu
+```
+
+### Economic Data
+
+```{r income}
+income_orig <- read_csv("C:/stat_240/data/wi_income.csv",na=c("-","**")) # Missing data are indicated by a dash or double asterisk
+income <- income_orig %>%
+  select(Id2,
+         `Number; Estimate; Households`,
+         `Median income (dollars); Estimate; Households`) %>%
+  rename(zip = Id2,
+         households = `Number; Estimate; Households`,
+         income = `Median income (dollars); Estimate; Households`)
+
+income
+```
+
+
+
+
+
+
+
+
+
+
+# Lecture:  Pivoting to Wider Format
+
+### Transform to Wide Format
+
+The long-format data has three columns that we want to spread across more columns:   
+  - `obese`, `bmi`, and `pop`
+
+For example, for each zip code, we want columns `obese_female_05-17` through `obese_male_75-plus`
+and something similar for `bmi` and `pop`.
+
+```{r obesity-summary}
+obesity %>%
+  count(sex,age)
+```
+
+##### Pivoting
+
+We will use the function `pivot_wider()` from the **tidyr** packages.
+
+A few input are specified:  
+
+- `id_col=zip` - with the wider form, zip code is our observation that is currently spread across multiple rows
+- `names_from=c(sex,age)` - the values from these variables will be used in the new column names 
+- `values_from=c(obese,bmi,pop)` - the content of the new columns will be from these variables  
+- `names_sep="_"` - specify the separator for the new column names
+
+```{r wide-format}
+obesity_wide <- obesity %>%
+  pivot_wider(
+    id_cols=zip, 
+    names_from=c(sex,age), 
+    values_from=c(obese,bmi,pop),
+    names_sep="_"
+    )
+
+head(obesity_wide)            
+```
+
+
+
+
+
+
+
+
+# Lecture:  Joining the Data Frames
+
+### Join
+
+To join the obesity data set to the education, income, and rural/urban data sets, we will use the function `left_join()` from `dplyr`.
+
+This function is a *mutating join* function that combines data frames by adding new variables (like `mutate()` does).
+
+In a `left_join()`, the result will keep all of the data in the first (left) data frame and add all the new variables from the second data frame, matching values using the variable specified by the `by` argument.
+
+Typically, the same name is used as the matching variable in each data frame, but this can be modified with a different `by` argument (e.g., `by = c("zip" = "zipcode")` if the matching variables were `zip` for one data frame and `zipcode` for the other)
+
+```{r join}
+## Note that obesity has 7740 rows
+## (one per zip code/sex/age interval) and the other data frames have
+## one row per zip code.
+## These columns are replicated as needed to match each row of obesity
+obesity <- obesity %>%
+  left_join(edu, by="zip") %>%
+  left_join(income, by="zip") %>%
+  left_join(ru, by="zip")
+
+obesity %>%
+  filter(zip == "53001")
+
+## Here, both data sets have a row per zip code (there are a few missing rows). Zip codes are matched to add the columns.
+obesity_wide <- obesity_wide %>%
+  left_join(edu, by="zip") %>%
+  left_join(income, by="zip") %>%
+  left_join(ru, by="zip")
+```
+
+Other mutating join functions are:
+
+- `inner_join()`
+    + keep only rows that match in each data frame
+- `left_join()`
+    + keep all rows from the first data frame
+- `right_join()`
+    + keep all rows from the second data frame
+- `full_join()`
+    + keep all rows from both data frames
+    
+### Write files
+
+After all of this work,
+it will be useful to save the data frames into a CSV file
+which we can read in directly in the future without the need to process all of the excel files.
+
+```{r save-data}
+write_csv(obesity,"C:/stat_240/data/obesity.csv")
+write_csv(obesity_wide,"C:/stat_240/data/obesity_wide.csv")
+```
+
+
+
+
+
+
+
+
+
+
+# Lecture:  Explore Obesity Data
+
+## Read Previously Saved Data
+
+```{r read-data}
+obesity <- read_csv("C:/stat_240/data/obesity.csv") %>%
+  mutate(adult = age != "05-17") # indicator for adult
+```
+
+### Summarize Obesity
+
+#### Numerical Summaries
+
+> What fraction of Wisconsin residents (aged 5 and older) are obese?
+
+Strategy for the calculation:
+
+- Estimate the fraction of obese people in each zip code by age and sex
+- Multiply these fractions by the populations by age and sex
+- Sum
+
+```{r obesity-calculations}
+## work with obesity data before joining
+## Caution:  this *assumes* that the obesity proportions from the study can be extrapolated to the population
+obesity <- obesity %>%
+  mutate(obese_n = pop * (obese/bmi))
+
+obesity %>%
+  select(obese_n,pop) %>%
+  drop_na() %>%
+  summarize(obese_p = sum(obese_n)/sum(pop))
+```
+
+> What fraction of Wisconsin residents (by sex) are obese?
+
+```{r obese-sex}
+obesity %>%
+  group_by(sex) %>%
+  select(obese_n,pop) %>%
+  drop_na() %>%
+  summarize(obese_p = sum(obese_n)/sum(pop))
+```
+
+> What fraction of Wisconsin residents (by age) are obese?
+
+```{r obese-age}
+obesity %>%
+  group_by(age) %>%
+  select(obese_n, pop) %>%
+  drop_na() %>%
+  summarise(obese_p = sum(obese_n) / sum(pop))
+```
+
+> What fraction of Wisconsin residents (by age and sex) are obese?
+
+```{r obese-age-sex}
+obesity %>%
+  group_by(age,sex) %>%
+  select(obese_n,pop) %>%
+  drop_na() %>%
+  summarize(obese_p = sum(obese_n)/sum(pop)) %>%
+  pivot_wider(id_cols=age, names_from=sex, values_from=obese_p)
+```
+
+#### Graphical Summaries
+
+> Create an effective graph that compares obesity rates by age and sex
+
+```{r obese-graph}
+obesity %>%
+  group_by(age,sex) %>%
+  select(obese_n,pop) %>%
+  drop_na() %>%
+  summarize(obese_p = sum(obese_n)/sum(pop)) %>%
+  ungroup() %>%
+  ggplot(aes(x = age, y = obese_p, fill = sex)) +
+  geom_col(position = "dodge") #seperating the bars so that the female and male end up getting stacked at different levels.
+```
+
+
+
+
+
+
+
+
+
+
+# Lecture:  Explore Relationship Between Obesity and Rural/Urban Environments
+
+### Summarize Rural/Urban
+
+> What fraction of adults live in rural and urban parts of Wisconsin?
+
+> How do the obesity rates compare between these two populations?
+
+### Compare Obesity among Rural/Urban areas
+
+> What fraction of adults live in rural and urban parts of Wisconsin?
+
+```{r rural-urban-data}
+ru <- obesity %>%
+  select(zip,rural,urban,population) %>%
+  distinct() #keep the distinct rows.
+
+ru %>%
+  summarize(total_r = sum(rural),
+            total_u = sum(urban),
+            total = sum(population),
+            p_rural = total_r/total,
+            p_urban = total_u/total)
+```
+
+The rural/urban data does not distinguish among children and adults.
+About 30% of Wisconsin residents live in rural areas and about 70% live in urban areas.
+
+
+
+> How do the obesity rates compare between these two populations? Explore numerically and graphically.
+
+```{r compare}
+ru2 <- obesity %>%
+  filter(adult == TRUE) %>%
+  select(zip,obese,bmi,pop,sex,age,rural,urban,population) %>%
+  drop_na() %>%
+  mutate(obese_n = obese/bmi*pop, #this *assumes* the obesity proportions from the study can be extrapolated to the population
+         obese_p = obese/bmi,
+         non_obese_n = pop - obese_n,
+         p_rural = rural/population,
+         p_urban = urban/population,
+         obese_r = obese_n * p_rural,
+         obese_u = obese_n * p_urban,
+         non_obese_r = non_obese_n * p_rural,
+         non_obese_u = non_obese_n * p_urban) 
+
+ru2 %>%
+  select(obese_r,obese_u,non_obese_r,non_obese_u) %>%
+  summarize_all(sum) %>%
+  summarize(prevalence_r = round(obese_r/(obese_r + non_obese_r),4),
+            prevalence_u = round(obese_u/(obese_u + non_obese_u),4))
+```
+
+The obesity rate among adults in rural Wisconsin is about 45% and it is about 40% in urban Wisconsin.
+
+
+
+```{r rural-urban-graph}
+ggplot(ru2, aes(x=100*p_urban,y=100*obese_p,color=sex,shape=age)) +
+  geom_point(position = position_jitter(width=1,height=0), alpha=0.1) +
+  geom_smooth(se=FALSE) +
+  xlab("Percentage Urban") +
+  ylab("Percentage Obese") +
+  ggtitle("Wisconsin Obesity by Zipcode") +
+  facet_grid(. ~ age)
+```
+
+Observations:
+
+- As zip code regions become more urban, the observed prevalence of obesity decreases in every age range for both males and females
+- There is considerable variation in obesity rates by zip code even at similar rural/urban mixes.
+- Obesity rates are higher in the age ranges from 35-54 and 55-74 than 18-34 or 75 and older among both men and women.
+- One plausible explanation for the lower observed obesity rate among adults aged 75 and older is a higher mortality rate among obese individuals from age 55-74.
+
+
+
+
+
+
+
+
+
+
+# Lecture:  Graphing Obesity Data on a Map
+
+
+## Obesity by Zip Code
+
+```{r calc}
+# Calculate adult obesity percentages by zip code
+obesity1 <- obesity %>%
+  filter(adult) %>%
+  select(zip,obese_n,pop) %>%
+  drop_na() %>%
+  group_by(zip) %>%
+  summarize(obese_pct = 100*sum(obese_n) / sum(pop))
+
+obesity1
+```
+
+### Latitude and longitude
+
+Load the latitude and longitude of each zip code from the `wi_zip.csv` file and join with our `obesity1`.
+
+```{r join-latitude-longitude}
+wi_zip <- read_csv("C:/stat_240/data/wi_zip.csv")
+
+obesity1 <- obesity1 %>%
+  left_join(wi_zip, by="zip")
+obesity1
+```
+
+### Plot
+
+We will use functions in the `ggmap` and `mapproj` packages to plot an outline of the state of Wisconsin.
+From `map_data` we can get the data for the boundary of the state.
+Then, we can overlay this with a layer of points.
+
+```{r plot}
+
+library(ggmap)
+library(mapproj)
+
+wi <- map_data('state',region='wisconsin')
+
+# Data from `wi`
+ggplot() +
+  geom_point(data=wi,
+               mapping=aes(x=long,y=lat),
+               fill="white",
+               color="black")
+
+ggplot() +
+  geom_polygon(data=wi,
+               mapping=aes(x=long,y=lat),
+               fill="white",
+               color="black") +
+  coord_map() +
+  geom_point(data=obesity1,
+             mapping=aes(x=longitude,y=latitude,color=obese_pct),
+             size=2,alpha=0.5) +
+  guides(color = guide_legend("Obesity %")) +
+  theme_void()+ #remove the lat and long
+  ggtitle("Wisconsin Percentage Obese",
+          subtitle="by zip code")
+```
+
+## Map Rural/Urban Areas
+
+```{r calc-rural}
+ru <- obesity %>%
+  select(zip,rural,urban,population,households) %>%
+  distinct() %>%
+  mutate(rural_pct = 100*rural/(rural+urban)) %>%
+  left_join(wi_zip, by="zip")
+ru
+```
+
+#### Map Rural
+
+```{r map-rural}
+ggplot() +
+  geom_polygon(data=wi,
+               mapping=aes(x=long,y=lat),
+               fill="white",
+               color="black") +
+  coord_map() +
+  geom_point(data=ru,
+             mapping=aes(x=longitude,y=latitude,
+                         color=rural_pct,size=households),
+             alpha=0.4) +
+  guides(color = guide_legend(title="% Rural"),
+         size = guide_legend(title="# of Households")) +
+  ggtitle("Wisconsin Percentage Rural",
+          subtitle="by zip code") +
+  theme_void()
+```
+
+
+
+## Obesity and Percentage Urban by Zip Code
+
+```{r combine}
+obesity2 <- obesity %>%
+  filter(age != "05-17") %>%
+  select(zip,obese_n,pop,rural,urban,population,households) %>%
+  drop_na() %>%
+  group_by(zip) %>%
+  summarize(obese_pct = 100*sum(obese_n)/sum(pop),
+            urban_pct = 100*sum(urban)/sum(population),
+            households = mean(households)) %>%
+  left_join(wi_zip, by="zip")
+obesity2
+```
+
+```{r map-obese-urban}
+ggplot() +
+  geom_polygon(data=wi,
+               mapping=aes(x=long,y=lat),
+               fill="white",
+               color="black") +
+  coord_map() +
+  geom_point(data=obesity2,
+             mapping=aes(x=longitude,y=latitude,
+                         color=obese_pct,
+                         size=urban_pct),
+             alpha=0.4) +
+  guides(color = guide_legend(title="% Obese"),
+         size = guide_legend(title="% Urban")) +
+  ggtitle("Wisconsin Obesity and Percentage Urban",
+          subtitle="by zip code") +
+  theme_void()
+```
+
+

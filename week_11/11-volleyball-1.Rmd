@@ -1,0 +1,605 @@
+---
+title: "Regression and Volleyball"
+author: "Jessi Kehe"
+output: html_document
+---
+This R Markdown document was adapted from documents created by Professor Bret Larget.
+
+### Setup details
+
+* You will need the packages `tidyverse` for these lectures.  
+
+* This assumes you have the R script `viridis.R` and `ggprob.R` two steps back from the working directory (`"../../scripts/viridis.R"`, `"../../scripts/ggprob.R"`).  Be sure to adjust the code if you have these scripts in different locations.
+
+* The following data files will be used and are assumed to be located two steps back from the working directory in a folder called `data/`.  Be sure to adjust the code if you have the data files in a different location.  
+`"../../data/geissler.csv"`  
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo=TRUE,message=FALSE,warning=FALSE,cache=TRUE,autodep=TRUE,cache.comments=FALSE)
+library(tidyverse)
+library(lubridate)
+library(kableExtra)
+library(dplyr)
+source("C:/stat_240/scripts/viridis.R")
+source("C:/stat_240/scripts/ggprob.R")
+```
+
+
+
+
+# Lecture:  Regression Overview
+
+
+### Background
+
+- Many problems in Statistics and Data Science involve examining the relationship between variables.
+- A common setting is when:
+    - a single quantitative variable is deemed a *response variable* y
+    - one or more other variables are treated as *explanatory variables* or *predictors*. x 
+- Such models are referred to as *linear models*
+    - In a standard linear model, the response variable is assumed to have a normal distribution given the predictors.
+
+#### Special cases
+
+- Linear models can be categorized based on the number and types of the predictors.
+    - *simple linear regression*: a single quantitative predictor
+    - *multiple regression*: multiple quantitative predictors
+    - *one-way analysis of variance*: a single categorical predictor
+    - *analysis of variance*: multiple categorical predictors
+
+#### Generalizations
+
+- When the distribution of the response variable is not modeled with a normal distribution, such as when it is a count or a single 0/1 response, it is often preferable to use a *generalized linear model*.
+    - *logistic regression*: for 0/1 response variables;
+    - *Poisson regression*: for non-negative count data.
+- At other times, it is preferable to model a categorical predictor as having a distribution itself.
+Some of these models are called *mixed effects models*.
+
+## Example
+
+- International Arrival airport wait time data from Chicago in 2018.
+
+```{r data-chicago}
+chicago <- read_csv2("C:/stat_240/data/chicago-2018.csv")
+chicago
+```
+
+- Model the number of booths as a function of the total number of passengers.
+    - How did the airport plan on staffing?
+    
+```{r graph-chicago}
+chicago_1 <- chicago %>%
+  select(all_total,all_booths) %>%
+  drop_na()
+
+chicago_1 %>%
+  summarize_all(list(
+    min = min,
+    mean = mean,
+    median = median,
+    max = max)) %>%
+  pivot_longer(cols = everything(), names_to="stat",values_to = "value")
+
+
+ggplot(chicago_1, aes(x=all_total,y=all_booths)) +
+  geom_point(alpha=0.1) +
+  geom_smooth(method = "lm")
+
+fit_1 <- lm(all_booths ~ all_total, data=chicago_1)
+
+summary(fit_1)
+
+
+
+
+ggplot(chicago_1, aes(x=all_total,y=all_booths)) +
+  geom_point(alpha=0.1) +
+  geom_smooth(method = "lm", se=FALSE, size = 2) +
+  geom_abline(slope = coef(fit_1)[[2]], intercept = coef(fit_1)[[1]], color="magenta")
+```
+
+
+
+
+
+
+
+
+
+# Lecture:  Introduction to Correlation
+
+
+## Correlation coefficient, $r$
+
+The correlation coefficient, $r$, is a summary statistic describing a particular relationship between two quantitative variables.  
+
+The correlation coefficient...
+
+- Measures the strength and direction of a linear relationship  
+- Is used for quantitative variables  
+- Does not distinguish the two variables  
+- Has no units of measurement  
+- $-1 \leq r \leq 1$
+
+$$
+r = \frac{\sum_{i=1}^n \left(\frac{x_i - \bar{x}}{s_x}\right)
+\left(\frac{y_i - \bar{y}}{s_y}\right)}{n-1}
+$$
+
+```{r, echo = FALSE}
+
+library(MASS)
+corr_plot <- function(r,n){
+  data0 <- mvrnorm(n, mu = c(0,0), 
+                 Sigma = matrix(c(1,r,r,1),ncol = 2), 
+                 empirical = TRUE)
+  df <- tibble(x = data0[,1], y = data0[,2])
+  gg <- ggplot(df, aes(x=x,y=y)) +
+    geom_point() +
+    ggtitle(paste0("Correlation = ", round(cor(df$x,df$y),3)))
+  return(gg)
+}
+
+corr_plot(-.70,100) #Decreasing trend
+corr_plot(-.20,100)
+corr_plot(0,100)
+corr_plot(.95,100) #Increasing trend
+
+detach("package:MASS")
+```
+
+### Thought Quiz
+
+1. Why is there no distinction between the explanatory and response variables in correlation?
+- In the correlation coefficient formula, it wouldn't matter which one we put first or second so that there is no distinction between the explanatory and response variables.
+
+2. Why do both variables have to be quantitative?  
+- In order to calculate the mean and the standard deviation.
+
+3. How does changing the units of measurement change correlation?  
+- The correlation itself is the unit-less.
+- It will not affect the correlation.
+
+4. Why doesn’t a tight fit to a horizontal line imply strong correlation?
+- A tight fit to a horizontal line implies that as x increases, y does not increase as much as x does so that we can know that a tight fit to a horizontal line represents the weak correlation between the predictor and reponse variables.
+
+
+
+
+
+
+
+
+
+# Lecture:  Introduction to Regression
+
+Correlation tells us about the strength and direction of a line.  
+- What if we want a description of how the variables vary together?
+
+The regression line...  
+- A regression line is a straight line that describes how a response variable y changes as an explanatory variable x changes  
+- We can use a regression line to predict the value of y for a
+given value of x  
+- The distinction between explanatory and response variables is important  
+- The Least-squares regression line is the unique line such that the sum of the squared vertical (y) distances between the data points and the line is as small as possible.
+
+#### Regression formulas
+
+The simple linear model has the form
+
+$$
+y = a_0 + a_1 x + \varepsilon
+$$
+where $y$ is the response variable, $x$ is the explantory variable, $a_0$ is the y-intercept, $a_1$ is the slope, and $\varepsilon$ is the error.  
+
+Using observations $(x_1,y_1), \ldots, (x_n,y_n)$, we can estimate $a_0$ and $a_1$ to get our Least-squares regression line as 
+
+$$
+\hat{y}_i = \hat{a}_0 + \hat{a}_1 x_i,
+$$
+where $\hat{y}_i$ is the predicted response corresponding to $x_i$, and $\hat{a}_0$ and $\hat{a}_1$ are the estimated intercept and slope, respectively.
+
+Least-squares Estimation: minimize the squared errors with respect to the unknown parameters.  
+- This is accomplished by minimizing the following with respect to the unknown parameters:  
+$$
+\sum_{i=1}^n(y_i - \hat{y}_i)^2 = \sum_{i=1}^n(y_i - (\hat{a}_0 + \hat{a}_1 x_i))^2
+$$
+- This results in the following estimators:
+
+Slope:
+$$
+\hat{a}_1 = r \frac{s_y}{s_x}
+$$
+where $r$ is the correlation coefficient, $s_y$ is the sample standard deviation for $y$, and $s_x$ is the sample standard deviation for $x$.
+
+Intercept:
+$$
+\hat{a}_0 = \bar{y} - \hat{a}_1 \bar{x}
+$$
+where $\bar{y}$ and $\bar{x}$ are the sample means of the $y$ and $x$ variables, respectively.
+
+
+
+
+
+
+
+
+
+# Lecture:  Regression Example
+
+We are going to generate a fake data set to use for our example.  By using fake data, we can also check how close our regression estimates match the true values we used to simulate our data.
+
+
+```{r}
+## Generate our fake dataset
+set.seed(246810)
+n <- 100 ## sample size
+a0 <- 1  ## intercept
+a1 <- 2.5  ## slope
+x <- runif(n, -3, 10)  ## explantory variable
+y <- rnorm(n,a0+a1*x,3)  ## response variable
+
+
+
+
+plot(x,y)
+```
+
+
+```{r}
+## Estimate our slope and intercept
+mx <- mean(x)
+my <- mean(y)
+sx <- sd(x)
+sy <- sd(y)
+
+r <- cor(x,y)
+r
+
+a1_hat <- r *sy/sx
+a1_hat
+#pretty close to actual slope
+
+
+a0_hat <- my - a1_hat*mx #estimated slop * mean of x
+a0_hat
+```
+
+We also can use `lm()` to estimate the slope and intercept:
+
+```{r}
+df0 <- tibble(x=x, y=y)
+lm0 <- lm(y~x, df0)
+summary(lm0)
+
+cf <- coef(lm0)
+cf
+#Estimated coefficient
+
+
+```
+
+### Residual plots
+
+One approach for checking if our linear assumption holds is to create a residual plot.  Recall that residual corresponding to the $i$th observation is $r_i = y_i - \hat{y}_i$.
+
+```{r}
+library(modelr)
+df0 <- df0 %>%
+  add_residuals(lm0) %>%
+  add_predictions(lm0)
+
+ggplot(df0, aes(x=x, y =resid)) +
+  geom_point() +
+  xlab("x") +
+  ylab("Residuals") +
+  geom_hline(aes(yintercept=0), color="red", linetype = "dashed")
+
+```
+
+
+As a comparison, below is a residual plot for a different simulated data set.
+
+Do you see any pattern in this residual plot?
+
+```{r, echo = FALSE}
+## Generate a different fake dataset that is not linear
+set.seed(246810)
+n <- 100 ## sample size
+x1 <- runif(n, -3, 3)  ## explantory variable
+y1 <- rnorm(n,0.5*x^2,5)  ## response variable
+
+df1 <- tibble(x=x1, y=y1)
+lm1 <- lm(y~x, df1)
+
+df1 <- df1 %>%
+  add_residuals(lm1) %>%
+  add_predictions(lm1)
+
+ggplot(df1, aes(x=x, y=resid)) +
+  geom_point() +
+  xlab("x") +
+  ylab("Residuals") +
+  geom_hline(aes(yintercept=0), color="red", linetype = "dashed")
+
+detach("package:modelr")
+```
+
+There is a clear pattern.  The residuals near the boundaries are positive and the residuals near the middle of the x range are negative. 
+
+This suggests that the relationship between y and x is not linear and appears to be quadratic.
+
+
+
+
+
+
+
+
+
+
+# Lecture:  Volleyball and Correlation
+
+### Background
+
+- The UW Volleyball team won the 2019 Big 10 volleyball championship.
+- As we examine regression and correlation, we will use season-long team statistics from all 332 Division I women's volleyball teams.
+
+### Data
+
+- The source of the data is [https://stats.ncaa.org/](https://stats.ncaa.org/).
+- Professor Larget had clicked to navigate to pages with summaries for multiple statistics, downloaded the data in Excel spread sheets, and saved the data into .CSV format.
+- The following block of code combines these different data sets.
+    - There is a single variable for the team and conference, which was split into two using `stringr` commands and regular expressions.
+- Finally, the manipulated data set was saved into a .CSV file for further use.
+    
+```{r data-vb}
+aces <- read_csv("C:/stat_240/data/aces.csv")
+assists <- read_csv("C:/stat_240/data/assists.csv")
+blocks <- read_csv("C:/stat_240/data/blocks.csv")
+digs <- read_csv("C:/stat_240/data/digs.csv")
+hitting <- read_csv("C:/stat_240/data/hitting.csv")
+kills <- read_csv("C:/stat_240/data/kills.csv")
+opponents <- read_csv("C:/stat_240/data/opponent-hitting.csv")
+wl <- read_csv("C:/stat_240/data/win-loss.csv")
+
+## Remove redundant columns
+remove_redundant <- function(x){
+  x <- x %>%
+    select(-Rank,-`W-L`,-`Per Set`) %>%
+    arrange(Team)
+  return ( x )
+}
+
+aces <- remove_redundant(aces)
+assists <- remove_redundant(assists)
+blocks <- remove_redundant(blocks)
+digs <- remove_redundant(digs)
+
+## Hit Pct. is (Kills - Errors) / Attacks
+hitting <- hitting %>%
+  select(-Rank,-S,-`W-L`,-`Pct.`) %>%
+  mutate(Hit_pct = (Kills - Errors)/`Total Attacks`) %>%
+  arrange(Team)
+kills <- remove_redundant(kills)
+opponents <- opponents %>%
+  select(-Rank,-S,-`Opp Pct`) %>%
+  mutate(Opp_pct = (`Opp Kills` - `Opp Errors`)/`Opp Attacks`) %>%
+  arrange(Team)
+wl <- wl %>%
+  select(-Rank,-`Pct.`) %>%
+  mutate(Win_pct = W/(W+L)) %>%
+  arrange(Team)
+
+## join the data
+vb <- wl %>%
+  left_join(aces) %>%
+  left_join(assists) %>%
+  left_join(blocks) %>%
+  left_join(digs) %>%
+  left_join(hitting) %>%
+##  left_join(kills) %>% ## kills are also in hitting
+  left_join(opponents) %>%
+  rename(Sets = S)
+
+## separate team from conference
+## Tricky because conference follows team name in parentheses
+##   but some team names include location in parentheses
+## Catch the last set of () in each string
+##   with spaces, dashes, letters, and numbers between
+conference_pattern <- "\\([- a-zA-Z0-9]+\\)$"
+#str_extract(vb$Team,conference_pattern)
+
+vb <- vb %>%
+  mutate(Conference = 
+           str_sub(str_extract(Team,conference_pattern),2,-2)) %>%
+  mutate(Team =
+           str_remove(Team,conference_pattern)) %>%
+  select(Team,Conference,everything())
+
+rm(conference_pattern)
+
+write_csv(vb,"C:/stat_240/data/volleyball-team-2019.csv")
+```
+
+### Big 10 and Regression
+
+- Our volleyball data set has season statistics from 332 teams.
+- We will examine only the Big 10 teams (14 of them) to explore a regression relationship to predict win percentage with the number of kills per set.
+- We will then examine relationships between summary statistics with estimated regression coefficients.
+
+#### Big 10 Data and Variables
+
+##### Get the Big Ten data
+
+```{r big-ten}
+vb <- read_csv("C:/stat_240/data/volleyball-team-2019.csv")
+big10 <- vb %>%
+  filter(Conference == "Big Ten")
+```
+
+##### Graphical Exploration
+
+```{r explore, fig.height=3}
+ggplot(big10, aes(x=Kills/Sets,y=Win_pct)) +
+  geom_point() +
+  geom_smooth(method="lm", se=FALSE) +
+  geom_smooth(se=FALSE,color="red") +
+  xlab("Kills per Set") +
+  ylab("Winning Percentage") +
+  ggtitle("2019 Big Ten Women's Volleyball")
+```
+
+##### Summary Statistics
+
+```{r correlation}
+x <- big10$Kills/big10$Sets
+y <- big10$Win_pct
+mx <- mean(x)
+my <- mean(y)
+sx <- sd(x)
+sy <- sd(y)
+r <- cor(x,y)
+slope <- r *sy/sx
+intercept <- my - slope*mx
+slope
+intercept
+
+fit <- lm(y ~ x)
+coef(fit)
+
+```
+
+
+
+
+
+
+
+
+
+
+
+# Lecture: Within Conference Relationships
+
+### Data
+
+- Use the data file created previously
+    
+```{r data}
+vb <- read_csv("C:/stat_240/data/volleyball-team-2019.csv")
+```
+
+### Explore Relationships Between Variables with Win Percentage within Conferences
+
+```{r conference-summaries}
+vb %>%
+  select(Team, Conference, W, L, Win_pct) %>%
+  mutate(w2 = W/(W+L))
+
+vb %>%
+  group_by(Conference) %>%
+  summarize(n=n(),
+            mean_win_pct = mean(Win_pct),
+            mean_win_pct_2 = sum(W)/(sum(W)+sum(L))) %>%
+  arrange(desc(mean_win_pct)) %>%
+  print(n=50)
+```
+
+##### Plot Win Percentage versus Kills per Set for all Conferences
+
+```{r kill-plots, fig.height=12}
+vb <- vb %>%
+  mutate(kills_per_set = Kills/Sets)
+
+ggplot(vb, aes(x=kills_per_set,y=Win_pct)) +
+  geom_point() +
+  geom_smooth(se=FALSE,method="lm") +
+  facet_wrap(~Conference)
+```
+
+```{r, fig.height=6}
+ggplot(vb, aes(x=kills_per_set,y=Win_pct,color=Conference)) +
+##  geom_point() +
+##  geom_smooth(se=FALSE,method="lm")
+  geom_point(show.legend=FALSE) +
+  geom_smooth(se=FALSE,method="lm",show.legend=FALSE)
+```
+
+
+1. Calculate the correlation coefficients and slopes for each conference
+
+```{r kill-calcs}
+get_slope <- function(x,y)
+{
+  fit <- lm(y ~ x)
+  return ( coef(fit)[2] )
+}
+
+kills_summary <- vb %>%
+  group_by(Conference) %>%
+  summarize(r = cor(kills_per_set,Win_pct),
+            b = get_slope(kills_per_set,Win_pct))
+kills_summary
+
+```
+
+
+2. Examine these summaries
+
+```{r kills-summaries}
+ggplot(kills_summary, aes(x=r)) +
+  geom_density()
+
+ggplot(kills_summary, aes(x=b)) +
+  geom_density()
+```
+
+
+3. Write a function to examine for other variables
+
+```{r regression-by-conference-summary}
+## This function uses some rlang dark magic
+##   so that the variable names can be passed in without quotes
+##   like in tidyverse functions
+## The arguments that are variables in df without quotes need to be
+##   wrapped by enquo() so that R does not try to evaluate them
+## Then, when we use them we need to "un enquo()" them
+##   which is what !! does.
+library(rlang)
+vb_regression_summary <- function(df,x,y)
+{
+  x <- enquo(x)
+  y <- enquo(y)
+  
+  vb_sum <- df %>%
+    group_by(Conference) %>%
+    summarize(r = cor(!!x,!!y),
+              b = get_slope(!!x,!!y))
+  g1 <- ggplot(vb_sum, aes(x = r)) +
+    geom_density() +
+    ggtitle(paste0("cor(",as_name(x),",",as_name(y),")"))
+  g2 <- ggplot(vb_sum, aes(x = b)) +
+    geom_density() +
+    ggtitle(paste0("slope from lm(",as_name(y),"~",as_name(x),")"))
+  plot(g1)
+  plot(g2)
+  
+  return ( invisible(vb_sum) )
+}
+
+vb_regression_summary(vb,kills_per_set,Win_pct)
+vb_regression_summary(vb,Hit_pct,Win_pct) ## Hit_pct = (Kills - Errors)/`Total Attacks`
+```
+
+
+
+
+
+
+
+
+
+

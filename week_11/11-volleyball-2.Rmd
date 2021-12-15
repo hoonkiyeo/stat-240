@@ -1,0 +1,394 @@
+---
+title: "Regression and Volleyball - 2"
+author: "Jessi Kehe"
+output: html_document
+---
+This R Markdown document was adapted from documents created by Professor Bret Larget.
+
+### Setup details
+
+* You will need the packages `tidyverse` for these lectures.  
+
+* This assumes you have the R script `viridis.R` and `ggprob.R` two steps back from the working directory (`"../../scripts/viridis.R"`, `"../../scripts/ggprob.R"`).  Be sure to adjust the code if you have these scripts in different locations.
+
+* The following data files will be used and are assumed to be located two steps back from the working directory in a folder called `data/`.  Be sure to adjust the code if you have the data files in a different location.  
+`"../../data/geissler.csv"`  
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo=TRUE,message=FALSE,warning=FALSE,cache=TRUE,autodep=TRUE,cache.comments=FALSE)
+library(tidyverse)
+library(lubridate)
+library(kableExtra)
+source("C:/stat_240/scripts/viridis.R")
+source("C:/stat_240/scripts/ggprob.R")
+```
+
+
+
+
+# Lecture:  Volleyball and Cleaning Data
+
+
+### Data
+
+- Use the data file created previously
+- Also use a new file with data from each individual match
+    
+```{r data-match}
+vb_team <- read_csv("C:/staT_240/data/volleyball-team-2019.csv")
+vb_match <- read_csv("C:/stat_240/data/vb-division1-2019-all-matches.csv") %>%
+  mutate(index = row_number()) %>%
+  select(index,everything())
+```
+
+### Cleaning the Match Data
+
+- The *vb_match* data results from scraping the NCAA statistics web site for match results.
+- Here is the URL for a sample page with results.
+    - [website](https://stats.ncaa.org/season_divisions/16966/scoreboards?utf8=%E2%9C%93&season_division_id=&game_date=08%2F30%2F2019&conference_id=0&tournament_id=&commit=Submit)
+- There are a number of potential problems
+
+#### Potential Problems Requiring Cleaning
+    
+- When Professor Larget scraped the data, he did not determine the winner (indicated by the color of the background of the team), but instead during processing based on which team won three sets.
+    - *But what if there are some matches where this is incorrect, perhaps by forfeit or an error in the source data?*
+- The winner of the first four sets is the team that first achieves 25 or more points and has a lead of 2 or more points. Most of the time, a set will finish with a score such as 25-21 or 25-17, but there could be matches with a final score of 27-25, say or something higher, if the match first reaches a tied score of 24-24.
+    - *But a set score such as 26-17 is not possible.*
+- The fifth set is played to 15, but you need to win by 2 points or more. Anytime a winning fifth set score is greater than 15, the losing score should be exactly 2 points less.
+   - *How can we detect all matches with invalid set scores?*
+- Matches that end after three sets should not have scores for the 4th and 5th sets.
+- Similarly, matches that end in four sets should not have scores for the 5th set.
+   - *How often does this happen?*
+- We want to be able to connect the match data with the team summaries.
+    - *Do the team names match?*
+    - *If we total wins and losses, do the numbers match?*
+    
+### Cleaning Problems
+
+1. Count the number of wins and losses from the *vb_team* data frame and compare to the number of matches in the *vb_match* data frame. Explain potential causes for differences.
+
+```{r problem-1}
+vb_team %>%
+  summarize(wins = sum(W),
+            losses = sum(L))
+
+nrow(vb_match)
+
+# Let's look at one team
+team_name <- "Samford"
+vb_match %>%
+  filter(team1==team_name | team2==team_name)
+vb_team %>%
+  filter(Team == team_name)
+
+## https://samfordsports.com/sports/womens-volleyball/schedule/2019
+## Samford played after 11/16/19 which were not included in vb_match
+
+
+# Let's look at one team
+team_name <- "Akron"
+vb_match %>%
+  filter(team1==team_name | team2==team_name)
+vb_team %>%
+  filter(Team == team_name)
+
+## https://gozips.com/sports/womens-volleyball/schedule/2019
+## Akron had one match after 11/16/19
+
+
+## Can find all teams where there is a mismatch
+team_names <- vb_team %>% pull(Team)
+n_match <- c()
+for(i in 1:length(team_names)){
+  team <- team_names[i]
+  n_match[i] <- vb_match %>%
+  filter(team1==team_name | team2==team_name) %>%
+    nrow()
+}
+
+vb_team <- vb_team %>%
+  mutate(
+    n_matches1 = n_match,
+    n_matches2 = W+L
+  ) 
+
+vb_team %>%
+  filter(n_matches1 != n_matches2)
+
+vb_team %>%
+  summarize(total1 = sum(n_matches1),
+            total2 = sum(n_matches2))
+
+```
+
+
+
+2. Identify all rows in *vb_match* with no winner and loser. Propose a remedy.
+
+```{r problem-2}
+vb_match %>%
+  filter(is.na(winner) | is.na(loser))
+```
+It appears that cases where a winner or loser is not listed is also missing the second team, except for index = 2015 (Saint Peter's vs. Lafayette); however, the points are not accurate and neither team is listed as the winner or loser.
+It seems this match may not have taken place.
+
+When looking at the match data online, it appears Grambling beat Jarvis Christian on 9/24/19, but the information was not scraped.
+
+We could look online to find all the missing information to update the missing teams.
+
+
+
+3. Identify all matches in *vb_match* with invalid set scores.
+
+```{r problem-3-1}
+## Check that final scores of 15 won by at least 2 points in set 5
+vb_match %>%
+  filter(!is.na(s1_5) & !is.na(s2_5)) %>%
+  filter( (s1_5 == 15 & s2_5 <= 15 & s1_5-s2_5 <2) | (s2_5 == 15 & s1_5 <= 15 & s2_5-s1_5<2))
+```
+
+```{r problem-3-1-b}
+## Check that final scores of > 15 won by 2 points in set 5
+vb_match %>%
+  filter(!is.na(s1_5) & !is.na(s2_5)) %>%
+  filter( (s1_5 > 15 | s2_5 > 15) & (abs(s1_5-s2_5) != 2)) %>%
+  select(index, s1_5, s2_5)
+```
+
+
+```{r problem-3-2}
+## Check that final scores of 25 won by at least 2 points in sets 1-4
+check_set <- function(s1_x, s2_x){
+  s1_x <- enquo(s1_x)
+  s2_x <- enquo(s2_x)
+  vb_match %>%
+  filter(!is.na(!!s1_x) & !is.na(!!s2_x)) %>%
+  filter( (!!s1_x == 25 & !!s2_x <= 25 & !!s1_x-!!s2_x <2) | (!!s2_x == 25 & !!s1_x <= 25 & !!s2_x-!!s1_x<2))
+}
+
+check_set(s1_1,s2_1)
+check_set(s1_2,s2_2)
+check_set(s1_3,s2_3)
+check_set(s1_4,s2_4)
+```
+
+```{r problem-3-2-b}
+## Check that final scores of > 25 won by 2 points in sets 1-4
+check_set2 <- function(s1_x, s2_x){
+  s1_x <- enquo(s1_x)
+  s2_x <- enquo(s2_x)
+  vb_match %>%
+  filter(!is.na(!!s1_x) & !is.na(!!s2_x)) %>%
+  filter( (!!s1_x > 25 | !!s2_x > 25) & (abs(!!s1_x-!!s2_x) != 2)) %>%
+  select(index, !!s1_x, !!s2_x)
+}
+
+check_set2(s1_1,s2_1)
+check_set2(s1_2,s2_2)
+check_set2(s1_3,s2_3)
+check_set2(s1_4,s2_4)
+```
+
+There appears to be quite a few scores that do not follow the rules.
+
+
+
+
+
+
+
+
+
+# Lecture:  Logistic Model
+
+### Data
+
+- The data modeled are the scores for each set across the individidual matches between division I opponents during the 2019 women's volleyball season.
+
+### Model
+
+- The model we will consider is where the strength of each team is represented by a parameter $\theta$. The difference between the values of this parameter for two opponents (possibly with adjustments for home court and random effects) determine the chance that a team wins a point. 
+
+- Assume that a match is made up of a series of independent Bernoulli trials, each resulting in a point for one team or the other, until the match is won.  
+    - A Bernoulli trial is a Binomial distribution with n = 1  
+    - If X ~ Bernoulli(p), the P(X = 1) = p and P(X = 0) = 1 - p
+
+- This model assumes the chance of a team winning a point is the same whether or not the team is serving and assumes that the chance does not depend on the current score of the game.  
+    - These assumptions cannot be checked using only data from the scores of each set from each match 
+
+The simple model for the probability that team $i$ with strength $\theta_i$ wins a single point versus team_2 with strength $\theta_j$ is a function of
+$$
+\Delta_{ij} = \theta_i - \theta_j
+$$
+where the probability is
+$$
+\mathsf{P}(\Delta_{ij}) = \frac{1}{1 + \mathrm{e}^{-\Delta_{ij}}}
+$$
+- Note that this probability is equal to $\frac{\mathrm{e}^{\Delta_{ij}}}{1 + \mathrm{e}^{\Delta_{ij}}}$
+and that the probability that team $j$ wins the point is one minus this probablity, or $\frac{1}{1 + \mathrm{e}^{\Delta_{ij}}}$.
+
+
+- For more complicated models that also depend on a home-court advantage and a match random effect, replace $\Delta_{ij}$ with $\Delta_{ij} + \alpha_{ijk} + \beta_k$   
+    - $\alpha_{ijk}$ is equal to $\alpha$ if team $i$ is home in match $k$, $-\alpha$ if team $j$ is home during match $k$ and 0 if match $k$ is at a neutral site.  
+    - The match random effect $\beta_k$ is assumed to be drawn from a normal mean zero distribution.
+    
+- The simple model is an example of a logistic regression model and the complicated model is an example of a mixed effects logistic regression model.
+
+- Notice that the model requires a constraint on the values of $\theta_i$ because adding or subtracting the same value to all $\theta$ does not change the point probabilities.  
+    - In a maximum likelihood setting, this can be accomplished by restricting the sum (or mean) of the $\theta_i$ values to be fixed.  
+    - (A Bayesian approach might put a prior density on the values with mean zero and an unknown standard deviation.)
+
+#### The Inverse-Logistic Function
+
+- The logistic function is a function of the log odds, $\ln(p/(1-p))$, where $p$ is a probability.  
+    - That is, $\ln(p/(1-p)) = \Delta_{ij}$.  
+    - If we solve for $p$ we get the inverse-logistic function...
+
+- The inverse of this function is how we model the probability:
+$$p = \frac{1}{1 + \mathrm{e}^{-\Delta_{ij}}}.$$
+
+```{r logistic-curve}
+inv_logistic <- function(x) { return ( 1/(1 + exp(-x)) )}
+delta <- seq(-5,5,length.out=1001)
+p <- inv_logistic(delta)
+df <- tibble(delta,p)
+
+ggplot(df, aes(x=delta,y=p)) +
+  geom_line(color="blue") +
+  geom_hline(yintercept = 0) +
+  geom_vline(xintercept = 0) +
+  geom_hline(yintercept = 1, color="red", linetype = "dashed")
+```
+
+
+
+
+
+
+
+
+
+# Lecture:  Logistic Model Estimation
+
+### Likelihood
+
+Here are results of one volleyball match.
+
+```{r likelihood example, echo=FALSE}
+library(kableExtra)
+match_1 <- tibble(
+  teams = c("Northeastern", "Green Bay"),
+  `1` = c(16,25),
+  `2` = c(28,26),
+  `3` = c(25,27),
+  `4` = c(23,25),
+  sets = c(1,3))
+
+total_1 <- 16+28+25+23
+total_2 <- 25+26+27+25
+
+kable(match_1) %>%
+  kable_styling(bootstrap_options = c("striped", "condensed"),
+                full_width = FALSE)
+
+```
+
+This match had a total of `r total_1 + total_2` points of which team 1, Northeastern, won `r total_1` and team 2, Green Bay, won `r total_2`.
+
+The likelihood of this result is
+$$
+L(\Delta) = \mathsf{P}(\Delta)^{92}(1 - \mathsf{P}(\Delta))^{103}
+$$
+which achieves its maximum value when $\mathsf{P}(\Delta) = \frac{92}{195}$, or
+
+$$
+\Delta = \ln \left( \frac{92/195}{103/195}\right) = 
+\ln \left( \frac{92}{103}\right) = `r round(log(92/103),4)`
+$$
+
+Estimation with many matches is much more complicated,
+even in the simple model,
+because the same teams play multiple games against different opponents.
+
+### Simulation
+
+One nice aspect of working in a computational environment like R Studio is that we can run simulations!
+
+Below is code that simulates the outcome of volleyball matches given an input `delta` (i.e., $\Delta$).
+
+```{r simulation}
+inv_logistic <- function(x) { return ( 1/(1 + exp(-x)) )} #estimate for the probabilty
+
+sim_set <- function(delta,target) #simulating one set
+{
+  p <- inv_logistic(delta)
+  points <- c(0,0)
+  repeat
+  {
+    pt <- rbinom(1,1,p)
+    if ( pt == 1 )
+      points[1] <- points[1] + 1
+    else
+      points[2] <- points[2] + 1
+    if ( max(points) >= target && abs(diff(points)) >= 2 )
+      break
+  }
+  return ( points )
+}
+#outcome of one set
+sim_set(.1, 25)
+
+sim_match <- function(delta)
+{
+  tab <- matrix(NA,2,5)
+  sets <- c(0,0)
+  index <- 1
+  repeat
+  {
+    if ( sum(sets) < 4 )
+      result <- sim_set(delta,25)
+    else
+      result <- sim_set(delta,15)
+    if ( result[1] > result[2] )
+      sets[1] <- sets[1] + 1
+    else
+      sets[2] <- sets[2] + 1
+    tab[,index] <- result
+    index <- index + 1
+    if ( max(sets == 3) )
+      break
+  }
+  return ( tab )
+}
+```
+
+
+Let's try running several matches.
+
+```{r test}
+set.seed(356346)
+
+for ( i in 1:10 )
+{
+  print(i)
+  print( sim_match(0.1) )
+}
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

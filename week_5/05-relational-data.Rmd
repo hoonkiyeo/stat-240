@@ -1,0 +1,111 @@
+---
+title: "Getting Started with Relational Data"
+author: "Jessi Kehe"
+output: html_document
+---
+
+### Setup details
+
+* You will need the packages **tidyverse**, **lubridate**, **nasaweather** for this lecture. 
+
+* Be sure to read R4DS Chapter 13 for information on relational data
+
+* We are going to consider a few simple examples to help you get started with relational data.  Practice on more complicated examples will come during the lectures and as the semester progresses.
+  
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo=TRUE,message=FALSE,warning=FALSE,cache=TRUE,autodep=TRUE,cache.comments=FALSE)
+library(tidyverse)
+library(lubridate)
+install.packages("nasaweather")
+library(nasaweather)
+```
+
+### Keys
+
+A **primary key** for a data frame are the variable or variables that uniquely identify an observation.
+
+Let's try to find the primary key in the `nasaweather::atmos` data.  We will begin by running `?nasaweather::atmos` for details on the data, which may provide some hint at a primary key.
+
+```{r}
+?nasaweather::atmos
+
+atmos <- nasaweather::atmos
+class(atmos)
+dim(atmos)
+names(atmos)
+
+atmos %>% 
+  count(lat, long, year, month) %>% 
+  filter(n > 1)
+
+atmos %>% 
+  count(lat,long,year,month) %>% 
+  filter(n > 1)
+```
+
+
+### Mutating joins
+
+We were introduced to joins in week 3 in our introduction to dplyr (see `03-intro-dplyr.Rmd`), but we will consider another example here.
+
+
+Consider the following two data frame. 
+
+```{r drinks-discounts}
+drinks <- tibble(
+  Drink = c("Milk Tea", "Espresso", "Latte", "Espresso"),
+  Cafe = c("Happy Tea", "Daily Grind", "Daily Grind", "Bev's Beverages"),
+  Price = c(4, 2, 3, 2)
+)
+drinks
+
+discounts <- tibble(
+  Coupon = c("25%", "50%", "5%"),
+  Location = c("Happy Tea", "Daily Grind", "The Roast")
+)
+discounts
+```
+
+
+```{r mutating-joins}
+drinks %>% 
+  inner_join(discounts, by = c("Cafe" = "Location"))
+
+drinks %>% 
+  full_join(discounts, by = c("Cafe" = "Location"))
+
+drinks %>% 
+  full_join(discounts, by = c("Cafe" = "Location"), keep=TRUE)
+
+drinks %>% 
+  left_join(discounts, by = c("Cafe" = "Location"))
+
+drinks %>% 
+ right_join(discounts, by = c("Cafe" = "Location"))
+```
+
+
+### Filtering joins
+
+Filtering joins also look to match observations between the two data frame, but focus on the observations instead of the variables. 
+
+There are two filtering joins:  `semi_join()` and `anti_join()`.  
+
+```{r filtering-joins}
+# semi_join() returns all observations of drinks with a match in discounts
+drinks %>% 
+  semi_join(discounts, by = c("Cafe" = "Location")) 
+
+discounts %>% 
+  semi_join(drinks, by = c("Location"="Cafe"))
+
+
+
+# anti_join() returns all observations of drinks that do *not* have a match in discounts
+drinks %>% 
+  anti_join(discounts, by = c("Cafe" = "Location"))
+
+discounts %>% 
+  anti_join(drinks, by = c("Location"="Cafe"))
+```
+

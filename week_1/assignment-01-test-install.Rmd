@@ -1,0 +1,51 @@
+---
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,message=FALSE)
+```
+
+## Assignment 1
+
+#### Due Friday, September 4, 11:59 PM
+
+The purpose of this assignment is to verify that you have correctly installed R, R Studio, and the tidyverse.
+
+### Preliminaries
+
+Follow the instructions in the Course Notes to set up your computer.
+
+[https://bookdown.org/bret_larget/stat-240-case-studies/](https://bookdown.org/bret_larget/stat-240-case-studies/)
+
+#.  Install R
+#.  Install RStudio
+#.  Set preferences in RStudio
+#.  Install the *tidyverse* package
+
+### Problems
+
+  1. Type the following commands into the console.
+
+```{r, eval=FALSE}
+set.seed(2020)
+rpois(1, 25)
+```
+
+The output will be the characters `[1]` followed by a number. What is the number?
+
+  2. Type the following commands into the console.
+ 
+```{r, eval=FALSE}
+library(tidyverse)
+data(trees)
+summarize(trees, n=n(), total=sum(Height))
+```
+
+The output will be a table that indicates the number of rows (n) of the data set `trees` and the sum of the variable `Height`. What is the sum of the variable `Height`, listed under the word **total** in the output?
+  
+### Submission
+
+To submit this assignment, go to our Canvas site and select "Assignments" on the left panel.  Click the link for this assignment and follow the directions; there will be space for text entry of your responses. 
+  
+  

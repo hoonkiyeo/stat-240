@@ -1,0 +1,94 @@
+---
+title: "Function"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+what does this function do?
+what kind of input does it take?
+what output will it give?
+what's a reasonable name (other than function_name?)
+
+
+
+```{r}
+function_name <- function(input_parameter_1, input_parameter2){
+  output <- input_parameter_1 + input_parameter2
+  return(output)
+}
+
+
+function_name(100, 200)
+```
+
+```{r}
+odd_or_even <- function(x){
+  if(!is.numeric(x)){
+    print("This is not numeric")
+  }else if((x %% 2) == 0){
+    print("This number is even")
+  }else{
+    print("This number is odd")
+  }
+}
+
+
+odd_or_even(133)
+```
+```{r}
+odd_or_even2 <- function(x){
+  if(!is.numeric(x)){
+    stop("input should be numeric")
+  }
+  
+  if((x %% 2) == 0){
+    print("This number is even")
+  }else{
+    print("This number is odd")
+  }
+}
+
+odd_or_even2(3)
+odd_or_even2(8)
+```
+### For loops
+
+```{r}
+for (i in 1:5){
+  print(i)
+}
+
+
+for (wisconsin in -2:8){
+  print(wisconsin)
+}
+
+
+
+
+get_sample_mean <- function(n, mean=0, sd=1){
+  random_sample <- rnorm(n, mean, sd)
+  sample_mean <- mean(random_sample)
+  return(sample_mean)
+}
+
+get_sample_mean(n=10, mean=4, sd=2)
+```
+
+```{r}
+N <- 10000
+n <- 10
+mean <- 4
+sd <- 2
+sample_means <- c()
+
+
+for (i in 1:N){
+  sample_means[i] <- get_sample_mean(n,mean,sd)
+}
+
+```
+

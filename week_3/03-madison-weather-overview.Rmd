@@ -1,0 +1,236 @@
+---
+title: "Madison Weather - Overview"
+author: "Jessi Kehe"
+output: html_document
+---
+
+This R Markdown document was adapted from documents created by Professor Bret Lager.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message=FALSE, warning=FALSE)
+install.packages("viridis")
+library(tidyverse)
+library(lubridate)
+
+## reset color defaults
+## Source https://data-se.netlify.com/2018/12/12/changing-the-default-color-scheme-in-ggplot2/
+library(tidyverse)
+library(viridis) # new colors
+library(scales)
+
+#### continuous variables color and fill
+
+options(ggplot2.continuous.colour="viridis")
+options(ggplot2.continuous.fill = "viridis")
+
+#### use viridis for discrete scales
+scale_colour_discrete <- scale_colour_viridis_d
+scale_fill_discrete <- function(...) {
+   scale_fill_manual(..., values = viridis_qualitative_pal7)
+} 
+
+## reset default theme
+theme_set(theme_minimal()) # ?:A minimalistic theme with no background annotations.
+```
+
+## Overview of Madison Weather Data
+
+> The source of the data for this week is from the National Oceanic and Atmospheric Administration (NOAA) of the United States.
+
+The data file is `madison-weather-2020.csv`, and the variable descriptions are provided below.
+
+STATION: unique code for the weather station   
+NAME: station name    
+LATITUDE: station latitude  
+LONGITUDE: station longitude  
+ELEVATION: station elevation (feet above sea level)   
+DATE: date of observations  
+AWND: average wind speed (mph)  
+PRCP: precipitation (inches, water)  
+SNOW: snow fall (inches)  
+SNWD: snow depth (inches)  
+TAVG: daily average air temperature (degrees Fahrenheit)   
+TMAX: maximum air temperature (degrees Fahrenheit)   
+TMIN: minimum air temperature (degrees Fahrenheit)   
+WSF1: maximum one-minute wind speed  
+
+### Import and Transform Data
+
+The data file has one row for each date and weather station.
+The following block of code will read in the data,
+eliminate two of the weather stations,
+eliminate many of the variables,
+and then combine the data from the remaining data sets so that there is just one observation per date.
+
+```{r import-transform-data}
+## Read in the data
+## Specify the type
+## This is needed to avoid issues for columns where first 1000 rows are all missing
+##   and the type is set to logical
+mw <- read_csv("madison-weather-2020.csv",
+              col_types = cols(
+  STATION = col_character(),
+  NAME = col_character(),
+  LATITUDE = col_double(),
+  LONGITUDE = col_double(),
+  ELEVATION = col_double(),
+  DATE = col_date(format = ""),
+  AWND = col_double(),
+  PRCP = col_double(),
+  SNOW = col_double(),
+  SNWD = col_double(),
+  TAVG = col_double(),
+  TMAX = col_double(),
+  TMIN = col_double(),
+  WSF1 = col_double()
+))
+
+
+## recode the NAME variable
+mw <- mw %>%
+  mutate(NAME = recode(NAME,
+                       `ARBORETUM UNIVERSITY WIS, WI US` = "Arboretum",
+                       `CHARMANY FARM, WI US` = "Charmany",
+                       `MADISON DANE CO REGIONAL AIRPORT, WI US` = "Airport",
+                       `MADISON MUNICIPAL AIRPORT, WI US` = "Municipal Airport",
+                       `MADISON WEATHER BUREAU CITY, WI US` = "Bureau"))
+
+## Select a few columns and reduce to two weather stations
+## Rename the variables with lower case letters
+mw <- mw %>%
+  select(NAME,DATE,PRCP,TMAX,TMIN) %>%
+  filter(NAME == "Airport" | NAME == "Bureau") %>%
+  rename(name = NAME,
+         date = DATE,
+         prcp = PRCP,
+         tmax = TMAX,
+         tmin = TMIN)
+
+## Find earliest and latest date
+mw %>%
+  group_by(name) %>%
+  summarize(min = min(date),max=max(date))
+
+## Decide to use all Airport data
+##  and only use Bureau data through 1939-09-30
+mw <- mw %>%
+  filter(name == "Airport" | date < "1939-10-01")
+
+## Double check
+mw %>%
+  group_by(name) %>%
+  summarize(min = min(date),max=max(date))
+
+## Check missing data
+mw %>%
+  summarize_all(function(x) sum(is.na(x)))
+
+## Drop rows with missing data
+mw <- mw %>%
+  drop_na()
+
+## Calculate average temperature and precipitation by year
+## Drop partial year of 2020
+## Add a period for 30-year periods from 1870 through 2019
+breaks = seq(1869,2019,30)
+labels = str_c((breaks+1)[-6],breaks[-1],sep="-") #?str_c: Joins two or more vectors element-wise into a single character vector, optionally inserting sep between input vectors.
+mw_year = mw %>%
+  mutate(tavg = (tmin+tmax)/2) %>%
+  mutate(year = year(date)) %>%
+  filter(year < 2020 & year > 1869) %>%
+  group_by(year) %>%
+  summarize(n = n(),
+            tmin = mean(tmin),
+            tavg = mean(tavg),
+            tmax = mean(tmax),
+            prcp = sum(prcp)) %>%
+  mutate(period = cut(year,
+                      breaks = breaks,
+                      labels = labels))
+## Summarize by month and period
+mw_month = mw %>%
+  mutate(tavg = (tmin+tmax)/2) %>%
+  mutate(month = month(date, label=TRUE)) %>%
+  mutate(year = year(date)) %>%
+  filter(year < 2020 & year > 1869) %>%
+  mutate(period = cut(year,
+                      breaks = breaks,
+                      labels = labels)) %>%
+  group_by(period,month) %>%
+  summarize(n=n(),
+            tmin = mean(tmin),
+            tmax = mean(tmax),
+            tavg = mean(tavg),
+            prcp = sum(prcp))
+```
+
+### Graph of minimum temp over time
+
+```{r tmin}
+ggplot(mw_year, aes(x=year, y=tmin)) +
+  geom_point() +
+  geom_smooth() +
+  xlab("Year") +
+  ylab("Average Minimum Temperature (degrees F)") +
+  ggtitle("Madison Annual Temperature",
+          subtitle = "1870-2019")
+```
+
+```{r tmax}
+ggplot(mw_year, aes(x=year, y=tmax)) +
+  geom_point() +
+  geom_smooth() +
+  xlab("Year") +
+  ylab("Average Maximum Temperature (degrees F)") +
+  ggtitle("Madison Annual Temperature",
+          subtitle = "1870-2019")
+```
+
+```{r tavg}
+ggplot(mw_year, aes(x=year, y=tavg)) +
+  geom_point() +
+  geom_smooth() +
+  xlab("Year") +
+  ylab("Average Annual Temperature (degrees F)") +
+  ggtitle("Madison Annual Temperature",
+          subtitle = "1870-2019")
+```
+
+```{r tmax-boxplot}
+ggplot(mw_year, aes(x=period, y=tmax, color=period)) +
+  geom_boxplot() +
+  geom_point(position = position_jitter(width=0.1,height=0)) +
+  xlab("30-Year Period") +
+  ylab("Average Maximum Temperature (degrees F)") +
+  ggtitle("Madison Annual Temperature by Period",
+          subtitle = "1870-2019")
+```
+
+#### Precipitation Plots
+
+```{r precip}
+ggplot(mw_year, aes(x=year, y=prcp)) +
+  geom_point() +
+  geom_smooth() +
+  xlab("Year") +
+  ylab("Annual Total Precipitation (inches)") +
+  ggtitle("Madison Annual Precipitation",
+          subtitle = "1870-2019")
+```
+
+#### Period Month Plot
+
+```{r period-month}
+ggplot(mw_month, aes(x=month,y=tavg,color=period)) +
+  geom_point() +
+  facet_wrap(~period) +
+  theme(axis.text.x = element_text(angle=45))
+```
+
+
+
+
+
+
+
+

@@ -1,0 +1,78 @@
+---
+title: "Lake Mendota Graphs"
+author: "Jessi Cisewski Kehe"
+date: "Fall 2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message=FALSE, warning=FALSE)
+library(tidyverse)
+library(lubridate)
+```
+
+This R Markdown document is adapted from a document created by Professor Bret Lager.
+
+
+## Read Data
+
+Make sure to put R Markdown file and data file in the same folder.
+
+```{r read-data}
+mendota <- read_csv("lake-mendota-clean-2020.csv")
+```
+
+
+
+## Question 3
+
+> What is the median *first* date of the winter that Lake Mendota freezes? Graph the difference between the actual first date for each year and this median (i) in a density plot and (ii) in a scatter plot versus year.
+
+The information to answer this question is not directly available from `mendota` so begin by adding a couple new columns to our data set.
+   - `mutate()` adds a new variable to our data set
+   - The `%>%` is the pipe.  We'll discuss this more later, but for now we'll just understand it in the context of this code chunk.  
+   
+```{r oct31}
+mendota <- mendota %>% 
+  mutate(oct31=as_date(paste0(year1,"-10-31"))) #Add variable oct31 as a date
+
+mendota$first_freeze - as_date(paste0(mendota$year1,"-10-31"))
+
+
+m = with(mendota, median(first_freeze-oct31, na.rm=TRUE))
+m
+
+as_date("2020-10-31")+m
+```
+   
+```{r first-freeze}
+mendota = mendota %>%  # Start with our data set, then 
+  mutate(first_freeze_median = oct31 + m) %>%  # add this new variable, then 
+  mutate(first_freeze_residual = first_freeze - first_freeze_median)  # add this new variable
+```
+
+Now we have two new columns in `mendota`:  `first_freeze_median` and `first_freeze_residual`.  Let's look at a density plot of the `first_freeze_residual`.
+```{r first-freeze-residual-density}
+ggplot(mendota, aes(x=first_freeze_residual)) +
+  geom_density(color="black",fill="purple") + 
+  xlab("Days (first freeze date - median first freeze date)") +
+  ylab("") +
+  ggtitle("Lake Mendota Freeze Durations, 1855-2020")
+```
+
+
+Next we will plot `first-freeze-residuals` by year.
+```{r first-freeze-residual-plots}
+ggplot(mendota, aes(x=year1,y=first_freeze_residual)) +
+  geom_point() +
+  geom_smooth(method="lm",se=FALSE) + # linear model trend line
+  geom_smooth(se=FALSE,color="red") + # add a smooth trend
+  geom_segment(aes(xend=year1, yend=0), color="lightgray") + # draws segments between (x,y) and (xend,yend)
+  geom_hline(yintercept = 0, color="gray", linetype="dashed") + # adds a horizontal line at yintercept
+  scale_y_continuous(breaks = seq(-21,42,by=7),
+                     labels = c("Nov 29","Dec 6","Dec 13","Dec 20","Dec 27","Jan 3","Jan 10","Jan 17","Jan 24","Jan 31")) +
+  xlab("Year") +
+  ylab(paste0("Days after ", format(mendota$first_freeze_median[1], format="%B %d"))) +
+  ggtitle(paste0("First freeze date days after ", format(mendota$first_freeze_median[1], format="%B %d"))) + 
+  theme_bw() # adjusts the plot colors (e.g., changes background)
+```

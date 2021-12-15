@@ -1,0 +1,243 @@
+---
+title: "Lake Mendota Models"
+author: "Jessi Cisewski Kehe"
+date: "Fall 2020"
+output: html_document
+---
+
+This R Markdown document is adapted from a document created by Professor Bret Lager.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message=FALSE, warning=FALSE)
+library(tidyverse)
+library(lubridate)
+```
+
+## R Markdown
+
+* This R Markdown document contains equations which are written using $\LaTeX$. You don't have to understand the syntax, but if you are interested you can learn more at [www.latex-project.org/](https://www.latex-project.org/).   
+* For a nice introduction to R Markdown, including $\LaTeX$, you can see this article by Professor Cosma Shalizi [here](http://www.stat.cmu.edu/~cshalizi/rmarkdown/#putting-it-all-together-writing-your-report-in-r-markdown).
+
+
+## Read Data
+
+Make sure to put R Markdown file and data file in the same folder.
+
+```{r read-data}
+mendota <- read_csv("lake-mendota-clean-2020.csv")
+```
+
+
+## Models for Freeze Duration by Year
+
+* In previous lectures, we have tried out different ways to graph the freeze durations versus year 
+  - We added a *smooth curve* to some plots to estimate a trend  
+* The curve may be thought of as a fitted model where the value of the curve at a given year is an estimate of some underlying "true expected value" of the freeze duration during the year  
+  - The *actual* (i.e., observed) freeze duration deviates from this true value by a random amount in any given year
+  - But there may also be a long-term increasing or decreasing trend as well  
+* If present, this trend is what we would like to try to capture with a model
+
+### Three models
+
+We will consider three models that we will fit and then investigate further: (i) no time effect model, (ii) linear model, and (iii) local linear regression model.
+
+#### Model Specification
+
+If we let $y_i$ represent the days that Lake Mendota is completely frozen in the $i$th winter of the data set and let $x_i$ be the first year of this winter (hence, $i = 1,\ldots,165$), a general model can take the form
+
+$$
+y_i = f(x_i) + \varepsilon_i
+$$
+
+where $f$ is some function and $\varepsilon_i$ is a random value from a distribution centered at zero.
+It is common to assume that the $\{\varepsilon_i\}$ are independent of each other and distributed according to a normal distribution (a symmetric bell-shaped curve). We write this as
+$$
+\varepsilon_i \sim \mathrm{Normal}(0,\sigma)
+$$
+where $0$ is the mean and $\sigma$ is a positive value that represents the standard deviation of the normal distribution.  More on this later.
+
+Our data are measured as integers (a number of days), but we can consider the duration of time the lake is frozen in a winter to have a continuous distribution with observations rounded to an integer due to measurement limitations.
+
+#### No time effect model
+
+This first model assumes that there is no trend in the freeze duration with time so that $f(x_i)$ is a constant value; we'll denote this constant as $\mu$.
+
+$$
+y_i = \mu + \varepsilon_i
+$$
+
+This model has two (unknown) parameters to fit ($\mu$ and $\sigma$).  
+
+* $\mu$ is interpreted as the expected duration of freezing in each year  
+* $\sigma$ is interpreted as the size of a typical difference between the actual freeze duration in a year and that predicted by the model
+
+#### Linear model
+
+The second model assumes a linear trend in the mean freeze duration with time.
+
+$$
+f(x_i) = \beta_0 + \beta_1 x_i
+$$
+
+This model has three parameters, ($\beta_0$, $\beta_1$, and $\sigma$). 
+
+* $\beta_0$ represents the freeze duration when the year is $x_i=0$.
+  -Our data range from about 1855 to 2020 so a year of 0 is quite an extrapolation.
+  - We could transform the $x$ variable (say, by subtracting a constant such as 1855, 1900, 1950, or 2000) from the year so that $x=0$ would correspond to a value in the range of the data to make the intercept $\beta_0$ more interpretable, but this is unnecessary.  
+* $\beta_1$ is the slope of the line and represents the change (a decrease if negative) of the average freeze duration each year.
+  - This is the relevant parameter value for interpreting the data to address the primary scientific question about whether there is an association between time and freeze duration.    
+* $\sigma$ has the same interpretation as in the previous model.
+
+#### Local Linear Regression Model
+
+In the final model, $f(x)$ is estimated to be a smooth curve which requires more parameters than just 2 to describe.  The parameters of such a model are difficult to interpret, but the graph of the curve adapts to the shape of the data.  The extent to which local features affect the shape depend on a particular input parameter.  
+
+### Evaluating Models with Residual Plots
+
+For each model, let $\hat{y}_i$ represent the value *predicted* by the model for the data point $y_i$.
+
+Data scientists are interested in evaluating the performance of their model.  One consideration is how far $\hat{y}_i$ is from $y_i$; this distance is called the residual.  
+
+The $i$th residual may be defined as
+$$
+r_i = y_i - \hat{y}_i
+$$
+Notice that if $y_i > \hat{y}_i$, then $r_i$ is positive; if $y_i < \hat{y}_i$ then $r_i$ is negative; if $y_i = \hat{y}_i$ then $r_i = 0$.
+
+* We will want to graph the residual versus the explanatory variable $x$ (the first year of the winter) and look for patterns.  Why might this be useful?  
+* We also will summarize the residuals by computing their *standard deviation* $s$.
+The general form of a sample standard deviation of numbers $x_1,\ldots,x_n$ which have mean $\bar{x} = \frac{1}{n}\sum_{i=1}^nx_i$ is
+$$
+s = \sqrt{ \frac{\sum_{i=1}^n (x_i - \bar{x})^2}{n-1} }
+$$
+which is (almost) the square root of the average squared deviation from the mean.
+
+* When we estimate residuals, the mean will be (up to numerical error) equal to zero, so we are (almost) calculating the square root of the mean of the squared residuals.  
+* The reason we divide by $n-1$ instead of $n$ has to do with a result from mathematical statistics about the expected value of the square of the sample standard deviation, called the sample variance.
+
+## Fitted Models, Plots, and Summaries
+
+We have mathematically defined our three models of interest (more or less), and now we will fit the models and assess the fits.
+
+### Removing Missing Data
+
+This code will *select* relevant variables and then eliminate years for which the duration data is missing.  In this clean data set, there are no missing values so none of the rows are removed.
+
+```{r remove-na}
+mendota2 = mendota %>%
+  select(winter,year1,days) %>% # select the variables
+  drop_na() # drop rows that having values missing
+
+dim(mendota) # dimension of original data frame
+dim(mendota2) # dimension of new data frame
+```
+
+#### Fit the Models
+
+This code will fit each of the three models and store the results as an object containing the fitted values and residuals for each model.
+
+```{r fit-models}
+fit1 <- lm(days ~ 1, data=mendota2)
+fit2 <- lm(days ~ year1, data=mendota2)
+fit3 <- loess(days ~ year1, data=mendota2)
+# loess = local regression
+
+r1 <- residuals(fit1)
+r2 <- residuals(fit2)
+r3 <- residuals(fit3)
+
+mendota3 <- mendota2 %>%
+  mutate(fit1 = fitted(fit1), # Add a column to our data frame with the fitted values and residuals
+         residuals1 = r1,
+         fit2 = fitted(fit2),
+         residuals2 = r2,
+         fit3 = fitted(fit3),
+         residuals3 = r3)
+```
+
+### Graphs
+
+#### Model 1: no time effect
+
+```{r model1}
+ggplot(mendota3) +
+  geom_line(aes(x=year1,y=days)) + # plots data as line
+  geom_point(aes(x=year1,y=days)) + # plots data as points
+  geom_line(aes(x=year1,y=fit1), color="red") + # plots fitted model as a line in red
+  ylab("Total days frozen") + # add y-axis label
+  xlab("Year") + # add x-axis label
+  ggtitle("Lake Mendota Freeze Durations, 1855-2020",
+          subtitle = "No Effect Model Fit") # add title and subtitle
+
+ggplot(mendota3) +
+  geom_point(aes(x=year1,y=residuals1)) +
+  geom_hline(yintercept=0) + # plots horizontal line at `yintercept=0`
+  ylab("Total days frozen") +
+  xlab("Year") +
+  ggtitle("Lake Mendota Freeze Durations, 1855-2020",
+          subtitle = "No Effect Model Residuals")
+
+ggplot(mendota3) +
+  geom_histogram(aes(x=residuals1), boundary=0, binwidth=7, # plots a histogram of the residuals
+                 color="black", fill = "blue") 
+```
+
+The estimate of $\sigma$ is `r round(sd(r1),1)` (the standard deviation of the residuals).  
+
+#### Model 2: linear
+
+```{r model2}
+ggplot(mendota3, aes(x=year1,y=days)) +
+  geom_line() +
+  geom_point() +
+  geom_smooth(se=FALSE,method="lm",color="cyan",size=3) + # this fits the same line as model 2
+  geom_line(aes(x=year1,y=fit2), color="red", size=2) + # plots fitted model as a line in red
+  ylab("Total days frozen") +
+  xlab("Year") +
+  ggtitle("Lake Mendota Freeze Durations, 1855-2020",
+          subtitle = "Linear Model Fit")
+
+ggplot(mendota3) +
+  geom_point(aes(x=year1,y=residuals2)) +
+  geom_hline(yintercept=0) +
+  ylab("Total days frozen") +
+  xlab("Year") +
+  ggtitle("Lake Mendota Freeze Durations, 1855-2020",
+          subtitle = "Linear Model Residuals")
+
+ggplot(mendota3) +
+  geom_histogram(aes(x=residuals2), boundary=0, binwidth=7,
+                 color="black", fill = "blue")
+```
+
+The estimate of $\sigma$ is $\hat{\sigma}=$ `r round(sd(r2),1)`.
+
+The estimated slope $\hat{\beta}_1=$ `r round(coef(fit2)[2],2)`.
+
+#### Model 3: local linear
+
+```{r model3}
+ggplot(mendota3, aes(x=year1,y=days)) +
+  geom_line() +
+  geom_point() +
+  geom_smooth(se=FALSE, color="cyan",size=3) + # this fits the same line as model 3
+  geom_line(aes(x=year1,y=fit3), color="red", size=2) + # plots fitted model as a line in red
+  ylab("Total days frozen") +
+  xlab("Year") +
+  ggtitle("Lake Mendota Freeze Durations, 1855-2020",
+          subtitle = "Loess Model Fit")
+
+ggplot(mendota3) +
+  geom_point(aes(x=year1,y=residuals3)) +
+  geom_hline(yintercept=0) +
+  ylab("Total days frozen") +
+  xlab("Year") +
+  ggtitle("Lake Mendota Freeze Durations, 1855-2020",
+          subtitle = "Loess Model Residuals")
+
+ggplot(mendota3) +
+  geom_histogram(aes(x=residuals3), boundary=0, binwidth=7,
+                 color="black", fill = "blue")
+```
+
+The estimate of $\sigma$ is `r round(sd(r3),1)`.

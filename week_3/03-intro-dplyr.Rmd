@@ -1,0 +1,223 @@
+---
+title: "Introduction to the dplyr package"
+author: "Jessi Kehe"
+output: html_document
+---
+
+This R Markdown document was adapted from documents created by Professor Bret Lager.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message=FALSE, warning=FALSE)
+library(tidyverse)
+library(lubridate)
+```
+
+
+
+
+## Overview of dplyr
+
+The dplyr package has functions and verbs for making changes to data sets using a grammar of data manipulation.
+
+From the [dplyr website](https://dplyr.tidyverse.org/), some of the most common verbs needed to accomplish this are listed below.
+
+`mutate()` *adds new variables that are functions of existing variables*  
+`select()` *picks variables based on their names*  
+`filter()` *picks cases based on their values*  
+`summarise()` *reduces multiple values down to a single summary*  
+`arrange()` *changes the ordering of the rows*  
+
+
+#### dplyr cheatsheet
+
+There are many cool things you can do using the dplyr package and we won't be able to go through everything this semester.  The [dplyr cheatsheet](https://raw.githubusercontent.com/rstudio/cheatsheets/master/data-transformation.pdf) is a useful summary of the package to keep handy.
+
+
+#### Simple demo
+
+Let's start with a simple demonstration, and then we will do into a little more detail with this lecture.  The other lectures using the Madison Weather data will provide more interesting (and complicated) examples.
+
+```{r survey-data}
+survey <- read_csv("survey-240.csv")
+str(survey)
+#View(survey)
+```
+
+At the time I downloaded these results from Canvas, 60 students had taken the survey.
+
+When reviewing `survey`, notice that the variable names are long - too long.  
+We will use the `rename()` command to change these to something simpler. See how we do this below.
+The general structure is `rename(new-name = old-name)`.  We don't typically need to use the back ticks, but since the original names have various sorts of punctuation and spaces that do not satisfy R's naming conventions we need them here.
+
+```{r survey}
+survey <- survey %>%
+  rename(year = `2470966: What year are you in school?`,
+         programming=`2470968: How much programming experience do you have?`,
+         r = `2470974: How much experience with R or RStudio do you have?`,
+         stat=`2470975: Have you previously take a statistics course?`,
+         cs=`2470976: Have you previously take a computer science course?`,
+         superpower=`2470978: If you could have one of the following super powers, which would you choose?`,
+         number=`2470979: Pick a number between 0 and 9.`,
+         hand=`2470991: What is your preferred hand?`,
+         dogcat=`2470992: Are you a "dog person" or a "cat person"?`,
+         dwarf=`2470995: Which of the Seven Dwarfs from Snow White are you most like?`,
+         sleep=`2470997: On average, how many hours of sleep do you get each night?`,
+         exercise=`2470999: During a typical week, how many hours do you spend exercising?`,
+         tv=`2471000: During a typical week, how many hours do you spend watching television?`
+         )
+survey %>%
+  head()
+```
+
+The dplyr package will allow us to work with and manipulate this data frame.  For example, suppose we want to see how much experience students in the class have using R.  We can use the following series of commands.
+
+```{r r-experience}
+survey %>%
+  group_by(r) %>% # the variable(s) we are interested in summarizing over
+  summarize(counts = n()) %>% # n() will give the counts by the levels of the group_by variable
+  arrange(desc(counts)) # Sort the rows in descending order by the counts
+```
+
+
+## Pipe
+
+So what is the `%>%` doing?
+
+* Similar to how ggplot2 commands use a + to add layers to a plot, in dplyr, we use the *pipe* command %>% to take the output from one command to “pipe it into” the first argument of the next command.
+
+* All dplyr (and tidyverse) commands take a data frame (or tibble) as the first argument; most also return a data frame which can then be used as the input to an additional command.
+
+```{r r-experience-comment}
+survey %>%
+  group_by(r) %>% # the variable(s) we are interested in summarizing over
+  summarize(counts = n()) %>% # n() will give the counts by the levels of the group_by variable
+  arrange(desc(counts)) # Sort the rows in descending order by the counts
+
+# a non-pipe option 
+r_group <- group_by(survey, r)
+r_summary <- summarize(r_group, counts=n())
+r_arrange <- arrange(r_summary, desc(counts))
+r_arrange
+
+# another non-pipe option (hard to see what's going on here, no?)
+arrange(summarize(group_by(survey, r), counts=n()), desc(counts))
+```
+
+
+## Manipulating Cases
+
+`filter()` — select rows by a condition  
+`slice()` — select rows by row number  
+`arrange()` — order rows    
+`desc()` — used inside of `arrange()` to specify the order in descending order of a variable  
+`select()` — select variables  
+    -- positive to include; negative to exclude  
+    -- helper functions: `starts_with()`, `ends_with()`, `contains()`, `everything()`    
+`mutate()` — add or change one or more variables  
+`transmute()` — add or change one or more variable, remove the `rest()`  
+`rename()` — change the name of a variable
+
+## Grouping and Summarizing 
+
+`summarize()` — compute a table of summaries  
+  - See the second page of the Cheatsheet for a large vocabulary of summarizing functions  
+`group_by()` —create groups; often used prior to `summarize()` with the effect that summaries are calculated by `group()`
+
+## Combining Data Sets
+
+`bind_cols()` — combine two data frames that have the same observations by binding together columns  
+`bond_rows()` — combine two data frame that have the same variables by binding together rows  
+`left_join()`, `right_join()`, `inner_join()`, `full_join()` — functions that mutate one or both data frames to join them togethe
+
+
+
+## Illustrations
+
+We are not going to cover in detail all the options presented above, but you will learn more during the Madison Weather lectures and from working with dplyr on your own.  Once you get the general idea, the world of R data frames will be your playground.
+
+#### Example 1:  sophomore superpowers
+
+Find the number of sophomores that select the invisible vs. flying superpowers.
+
+```{r ex1}
+survey %>%
+  group_by(year, superpower) %>%
+  summarize(n = n()) %>%
+  filter(year=="Sophomore") %>%
+  ungroup() %>%
+  select(-year)
+```
+
+#### Example 2:  dog people's numbers times 2
+
+```{r ex2}
+survey %>%
+  filter(dogcat == "Dog") %>%
+  mutate(times2 = number*2) %>%
+  select(dogcat, number, times2)
+```
+
+
+#### Example 3:  d-er variables
+
+```{r ex3}
+survey %>% 
+  select(starts_with("d") | contains("er")) %>%
+  arrange(dwarf)
+```
+
+
+#### Example 4:  Paint by numbers
+
+You may not have realized this, but when you were selecting numbers you were actually selecting colors!  OK, not really.  But suppose we had a data frame called `number_colors` that mapped numbers to colors.  What if we wanted to use those assignments in our `survey` table?  We can use the dplyr funtions for combining data sets.
+
+```{r ex4-tibble}
+number_colors <- tibble(num = c(0,1:5,8:12), colors = c("gold", "black","red","green","blue","cyan","magenta","orange","darkgray","yellow","pink"))
+number_colors
+```
+
+Notice that not all our numbers between 1 and 9 have colors, and not all the colors in `number_colors` have numbers that would appear with our `number` variable.  This is setup to illustrate what happens with the different dyplr options for combining data frames.
+
+We are going to select a couple variables (`year` and `number`) and then filter to only include the numbers that the juniors in our class selected.  
+```{r ex4-subset}
+survey %>% 
+  select(year, number) %>%
+  filter(year=="Junior")
+```
+
+OK, now let's try out the different joins!
+```{r ex4}
+# inner_join -  includes all rows in (both) x and y
+survey %>% 
+  select(year, number) %>%
+  filter(year=="Junior") %>%
+  inner_join(number_colors, by=c("number"="num")) %>%
+  arrange(number)
+
+# full_join - includes all rows in (either) x or y
+survey %>% 
+  select(year, number) %>%
+  filter(year=="Junior") %>%
+  full_join(number_colors, by=c("number"="num")) %>%
+  arrange(number)
+
+# right_join -  includes all rows in y
+survey %>% 
+  select(year, number) %>%
+  filter(year=="Junior") %>%
+  right_join(number_colors, by=c("number"="num")) %>%
+  arrange(number)
+
+# left_join -   includes all rows in x
+survey %>% 
+  select(year, number) %>%
+  filter(year=="Junior") %>%
+  left_join(number_colors, by=c("number"="num")) %>%
+  arrange(number)
+```
+
+
+
+
+
+

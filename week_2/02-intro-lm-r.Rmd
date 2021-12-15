@@ -1,0 +1,196 @@
+---
+title: "Introduction to lm() for linear models"
+author: "Jessi Cisewski Kehe"
+date: "Fall 2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message=FALSE, warning=FALSE)
+library(tidyverse)
+```
+
+
+# Simple linear regression model 
+
+## Overview
+
+A simple linear model has the following form:
+
+$$y_i = \beta_0 + \beta_1 x_i + \varepsilon_i$$
+
+* $y_i$ is the dependent variable (depends on $x_i$)  
+*  $x_i$ is the independent/explanatory variable  
+*  $\beta_0$ is the unknown y-intercept  
+*  $\beta_1$ is the unknown slope  
+*  $\varepsilon_i$ is the random error   
+
+Often we have a dataset with values for the pairs $(x_i, y_i)$ with $i = 1, \ldots, n$ ($n$ is the total number of observations).  Using this dataset, we can estimate the unknown parameters $\beta_0$ and $\beta_1$.
+
+
+There are various assumptions that are often made on this model.
+
+1.  The $\varepsilon$ is considered a random variable which has a mean of 0, which we can write as $E(\varepsilon_i) = 0,  i = 1, \ldots, n$ 
+
+1. Errors have a constant variance:  $Var(\varepsilon_i) = \sigma^2$, $i = 1, \ldots, n$ 
+
+1. Errors are uncorrelated 
+
+If wanting to do inference on this model, additional assumptions may be made on the distribution of the $\varepsilon_i$'s.  For example, it is common to assume that the $\varepsilon_i$ come from a normal distribution with a mean of 0 and a standard deviation of $\sigma$.
+
+This code displays different normal density curves (don't worry about the code, but focus on the resulting plot).
+```{r normal}
+grid <- seq(-5, 5, length.out=1000) # create a grid 
+y1 <- dnorm(grid, mean=0, sd = 1) # density curve of a normal distribution with mean=0, stand. dev.=1
+y2 <- dnorm(grid, mean=0, sd = 3) # density curve of a normal distribution with mean=0, stand. dev.=3
+y3 <- dnorm(grid, mean=1, sd = .5) # density curve of a normal distribution with mean=1, stand. dev.=.5
+
+normal <- tibble(grid=grid, y1=y1, y2=y2, y3=y3) # combine data into a tibble
+colors <- c("(0,1)" = "blue", "(0,3)" = "red", "(1,.5)" = "cyan") # set color assignments
+ggplot(normal, aes(x=grid)) +
+  geom_line(aes(y=y1,color="(0,1)"), size=2) +
+  geom_line(aes(y=y2,color="(0,3)"), size=2) +
+  geom_line(aes(y=y3,color="(1,.5)"), size=2) +
+  labs(title = "Normal density curves",
+       x = "Grid",
+       y = "Density",
+       color = "(mean, sd)") +
+  scale_color_manual(values = colors) 
+```
+
+The take-away here is that a normal density curve is unimodal (a single peak), symmetric, and bell-shaped.  The peak of the density curve is at the mean $\mu$ and the width is related to the standard deviation $\sigma$.
+
+
+
+## Fitting the linear model using the lm() function
+
+### Generate our data
+
+We are going to create a simulated (i.e, fake) dataset and then use the `lm()` function to fit a linear model using our simulated data.
+
+To generate the date, we will specify (i) a sample size using the variable name `n`, (ii)  explanatory variable values `x` by drawing `n` random numbers (uniformly) between 0 and 10, (iii) `sigma` is the standard deviation of the error variable, (iv) error variable values `error` by drawing `n` random numbers from a normal distribution centered at 0 with a standard deviation `sigma`, (v) an intercept value `beta0`, (vi) a slope value `beta1`, and finally (vii) the response variable values `y` by defining the linear model plus error as `beta0 + beta1*x + error`.  We then bring the `x` and `y` together in a data frame called a *tibble*.
+
+Notice that we are generating data that perfectly satisfy all the assumptions in the model, including the linearity between `x` and `y`.  In practice, we would have to check these assumptions to see if a linear model is appropriate.
+
+```{r fake-data}
+set.seed(246) # Setting our random seed so the dataset always comes out the same
+n <- 50 # set our sample size
+x <- runif(n, 0, 10) # explanatory variable
+sigma <- 2 # standard deviation of error
+error <- rnorm(n, 0, sigma) # error
+beta0 <- 2 # intercept
+beta1 <- -3 # slope
+y <- beta0 + beta1*x + error # generate our response variable y
+dset <- tibble(x=x,y=y) # create our data frame for analysis
+str(dset) 
+```
+
+Let's plot our data to see what we generated.  Notice that the points decrease with increasing values of `x`.  This is because our slope, `beta1`, is negative.  You can try changing the values for the model and see how that changes the plot.  For example, if you change the standard devation for `error` to .1 or 10, what happens?
+```{r plot-data}
+ggplot(dset, aes(x,y)) +
+  geom_point() +
+  ylab("y") +
+  xlab("x") +
+  ggtitle("Simulated data")
+```
+
+
+### Fit the linear model
+
+We can use the function `lm()` to fit our linear model.  It uses the least-squares method (we won't discuss the details yet).  The form of the input is `lm(response-variable-name ~ explanatory-variable-name, data-frame-name)`.
+```{r fit-model}
+lm1 <- lm(y~x, dset) # fit the model
+coefficients(lm1) # view estimated coefficients for beta0 and beta1
+fitted(lm1) # gives the fitted values of the model
+summary(lm1) # summarizes the model fit; just look at this, but don't worry about understanding the content
+```
+
+The code below adds a column to our data frame with the fitted values of the model.
+```{r add-fit}
+dset2 <- dset %>%
+  mutate(fit = fitted(lm1)) # Add a column to our data frame with the fitted values)
+```
+
+
+Now we can plot our data with the model fit.  Notice that the estimate of $\beta_0$ is `r round(coef(lm1)[1],1)` while our true input value was `r beta0`; the estimate of $\beta_1$ is `r round(coef(lm1)[2],1)` while our true input value was `r beta1`.  We'll discuss our estimate for `sigma` below.
+
+The `geom_smooth(se=FALSE,method="lm")` actually plots the same fit as our model!
+```{r plot-fit-1}
+ggplot(dset2, aes(x=x,y=y)) +
+  geom_point() +
+  geom_line(aes(y=fit),color="red", size = 1) +  # our fit model
+  geom_smooth(se=FALSE,method="lm",color="cyan",size=1) +  # this fits the same line as our model!
+  ylab("y") +
+  xlab("x") +
+  ggtitle("Linear model fit")
+```
+
+
+
+
+### Residuals
+For each model, let $\hat{y}_i$ represent the value *predicted* by the model for the data point $y_i$.  That is, 
+$$
+\hat{y}_i = \hat{\beta_0} + \hat{\beta_1}x_i, \quad i = 1, \ldots, n
+$$
+where $\hat{\beta_0}$ is our estimated $\beta_0$ and $\hat{\beta_1}$ is our estimated $\beta_0$.
+
+Data scientists are interested in evaluating the performance of their model.  One consideration is how far $\hat{y}_i$ is from $y_i$; this distance is called the residual.  
+
+The $i$th residual may be defined as
+$$
+r_i = y_i - \hat{y}_i
+$$
+Notice that if $y_i > \hat{y}_i$, then $r_i$ is positive; if $y_i < \hat{y}_i$ then $r_i$ is negative; if $y_i = \hat{y}_i$ then $r_i = 0$.
+
+We can access our estimated residuals using the `residuals()` function by inputting our linear model object name, `lm1`.  In the code below, we add a new column to our `dset2` with the residuals.
+```{r residuals}
+residuals1 <- residuals(lm1)
+dset2 <- dset2 %>%
+  mutate(residuals = residuals1) # Add a column to our data frame with the fitted values)
+```
+
+The following plot shows out data with the model fit, and then the added vertical bars indicate the residuals.
+```{r plot-residuals}
+ggplot(dset2, aes(x=x,y=y)) +
+  geom_point() +
+  geom_line(aes(y=fit),color="red") +
+  geom_segment(aes(xend=x, yend=fit), color="cyan") +  # draws segments between (x,y) and (xend,yend)
+  ylab("y") +
+  xlab("x") +
+  ggtitle("Linear model fit plus residuals")
+```
+
+
+* We can summarize the residuals by computing their *standard deviation* $s$.
+The general form of a sample standard deviation of numbers $x_1,\ldots,x_n$ which have mean $\bar{x} = \frac{1}{n}\sum_{i=1}^nx_i$ is
+$$
+s = \sqrt{ \frac{\sum_{i=1}^n (x_i - \bar{x})^2}{n-1} }
+$$
+which is (almost) the square root of the average squared deviation from the mean.  
+
+The mean of the estimated residuals (up to numerical error) equal to zero, so we are (almost) calculating the square root of the mean of the squared residuals. 
+```{r residual-mean}
+mean(residuals1) # mean of the estimated residuals
+```
+The reason we divide by $n-1$ instead of $n$ has to do with a result from mathematical statistics about the expected value of the square of the sample standard deviation, called the sample variance.
+
+We can use the function `sd()` to calculate the standard deviation of our residuals.
+```{r residuals-sd}
+sd_residuals <- sd(residuals1)
+sd_residuals
+```
+Hence, the estimate of $\sigma$ is `r sd_residuals` while our true input value was `r sigma`
+
+One thing to do with the residuals is to plot the residual versus the explanatory variable $x$ and look for patterns.  Why might this be useful?  
+```{r}
+ggplot(dset2, aes(x=x, y=residuals1)) +
+  geom_point() +
+  geom_hline(yintercept = 0, color="gray") +
+  ylab("Residuals") +
+  xlab("x") +
+  ggtitle("Linear Model Residuals")
+```
+
+
+

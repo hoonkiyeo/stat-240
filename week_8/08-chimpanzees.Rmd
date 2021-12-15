@@ -1,0 +1,646 @@
+---
+title: "Chimpanzees Analysis"
+author: "Jessi Kehe"
+output: html_document
+---
+This R Markdown document was adapted from documents created by Professor Bret Larget.
+
+### Setup details
+
+* You will need the packages `tidyverse` for these lectures.  
+
+* This assumes you have the R script `viridis.R` two steps back from the working directory (`"../../scripts/viridis.R"`).  Be sure to adjust the code if you have this script in a different location.
+
+* The following data files will be used and are assumed to be located two steps back from the working directory in a folder called `data/`.  Be sure to adjust the code if you have the data files in a different location.  
+`"../../data/chimpanzee.csv"`  
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo=TRUE,message=FALSE,warning=FALSE,cache=TRUE,autodep=TRUE,cache.comments=FALSE)
+library(tidyverse)
+library(lubridate)
+source("C:/stat_240/scripts/viridis.R")
+source("C:/stat_240/scripts/ggprob.R")
+Sys.setlocale("LC_TIME","English_United States.1252")
+```
+
+
+
+
+
+
+
+
+
+
+# Lecture:  Chimpanzee Data Introduction
+
+
+## Case Study
+
+- Chimpanzees were studied in a pro-social choice experiment.
+    - Chimpanzees are given a sequence of choices about which color token to select.
+    - One color (labeled selfish) results in them getting food.
+    - Another (labeled pro-social) results in both them and a partner chimp receiving food.
+    - In a control setting, there is no partner
+        - different color choices result in the researcher mimicking the same actions as when partner is present (i.e., always giving the actor chimp food, making a motion with food toward the empty room for the partner chimp).
+- We will develop a statistical model for this experiment.
+- Each part of the experiment includes a series of 30 trials where one of two outcomes is possible.
+
+
+## Inference questions
+
+- How often does the actor chimpanzee make the pro-social choice? How much uncertainty is there in this estimate? How confident can we be that the long-run probability of making the pro-social choice in repeated trials falls within some interval?
+- Do chimps make the pro-social choice more than 50 percent of the time, or is the pro-social choice made at random?
+- Does the frequency with which the chimpanzee makes the pro-social choice depend on there being a partner chimpanzee in the neighboring room?
+
+
+## Partial Data
+
+- One chimpanzee (subject A) was tested 90 times with a partner (three sets of 30 trials with each of three different partners)
+- The chimpanzee made the pro-social choice 60 times out of 90 trials.
+
+
+## A Statistical Model
+
+1. Name and define variables
+2. Make assumptions (these can be examined later)
+3. Write a probability model for the variables and required parameters
+
+- $X$ is the number of pro-social choices that subject A makes in 90 trials.
+- Assume:
+    - each trial could be pro-social or selfish
+    - 90 trials was predetermined
+    - trials are independent (this assumption is debatable)
+    - same probability of pro-social choice for each trial (this assumption is debatable)
+- Under these assumptions, $X$ has a binomial distribution.
+- Parameters are:
+    - $n$, the number of trials. Here $n=90$.
+    - $p$, an unknown long-run probability that this chimpanzee makes the pro-social choice. (We may be interesting in inference on this parameter using the data.)
+    
+The model is:
+
+$$
+X \mid p \sim \text{Binomial}(n,p)
+$$
+
+The data are:
+
+- $n=90$
+- $x=60$
+
+
+## Point Estimates
+
+- A *point estimate* is a statistic calculated from the data to estimate a parameter.
+- We often put a "hat" over the parameter symbol to indicate an estimate.
+- A natural estimate here is:
+    - $\hat{p} = \frac{60}{90} = `r round(60/90,3)`$
+    
+    
+## Standard Error 
+
+- How accurate is this estimate?
+- The (random) *estimator* is $\hat{P} = \frac{X}{n}$, where $X \sim \text{Binomial}(n,p)$  
+(I am going to use $\hat{P}$ to represent our random estimator, and $\hat{p}$ to represent the non-random observed statistic)  
+    - The (non-random) *estimate* is our $\hat{p} = \frac{60}{90}$  
+    - The variance of $\frac{X}{n}$ is $\frac{Var(X)}{n^2} = \frac{np(1-p)}{n} = \frac{p(1-p)}{n}$  
+- Consider the *sampling distribution* of the estimator when doing inference.   
+    - You can think of the sampling distribution as the distribution of all possible values of the statistic taken with a fixed sample size $n$.  
+
+$$
+\text{SE}(\hat{p}) = \sqrt{ \frac{p(1-p)}{n} }
+$$
+
+```{r standard-error}
+X <- 60
+n <- 90
+p_hat <- round(60/90,3) #random estimate
+p_hat
+
+## Possible estimate for the SE
+round(sqrt(p_hat*(1-p_hat)/n),3) #standard error
+```
+
+
+
+
+
+
+
+
+
+
+# Lecture:  Introduction to Confidence Intervals for p
+
+
+- A confidence interval incorporates uncertainty with the point estimate to form an *interval estimate* with an attached level of confidence.
+- A conventional choice is 95%, but other confidence levels are possible.
+- When the sampling distribution of a point estimate is approximately normal, we typically construct confidence intervals as
+
+$$
+\text{point estimate} \pm \text{margin of error}
+$$
+where the margin of error is a critical value from a standard normal distribution multiplied by a standard error.
+
+$$
+\text{margon of error} = z \times \text{SE}
+$$
+where $z$ is selected so that the area between $-z$ and $z$ under a standard normal density matches the desired confidence level.
+
+
+## Logic of Confidence Intervals
+
+- Recall that $\hat{P} = \frac{X}{n}$ where $X \sim \text{Binomial}(n,p)$.  
+    - We learned previously that under certain assumptions, a binomial distribution approximately follows a normal distribution with mean $\mu = np$ and $\sigma = \sqrt{np(1-p)}$  
+    - This implies that our estimator $\hat{P} \sim N\left(p, \sqrt{\frac{p(1-p)}{n}}\right)$ (this is before we observe our sample so it is still random)  
+- If $p$ was known, then there is about a 95% chance that an observed $\hat{p}$ will be within 1.96 standard errors of $p$, assuming approximate normality. 
+    - This is because if $p$ is known, then $P(p-1.96 SE < \hat{P} < p + 1.96 SE) \approx 0.95$, where $SE = \sqrt{\frac{p(1-p)}{n}}$, and $\hat{p}$ is a realization of $\hat{P}$.    
+    - Use a different value instead of $z=1.96$ for a different confidence level.
+- If we do not know $p$, but observe $\hat{p}$, there was a 95% chance before the random sample was taken that $\hat{p}$ would be within 1.96 SEs of this unknown $p$, so we can be *95% confident* that the observed $\hat{p}$ is one of the 95% of the possible ones that is within 1.96 SEs of $p$.
+- Therefore, we are 95% confident that $p$ is within 1.96 SEs of $\hat{p}$.
+- We construct a 95% confidence interval by forming an interval centered at a point estimate plus or minus 1.96 times the standard error.
+
+
+
+
+
+
+
+
+
+
+
+# Lecture:  Interpretation of confidence intervals
+
+
+> What do we hope to capture within a confidence interval?
+
+The unknown parameter $p$.  In practice, we do not know if $p$ is or is not within the interval.
+
+
+> What happens to confidence intervals when the confidence level changes?
+
+Intuitively, to be more confident the true $p$ is captured, it makes sense that would correspond with a wider interval (all else equal)
+
+Recall the margin of error gives the half-width of the interval:
+$$
+\text{margon of error} = z \times \text{SE}
+$$
+
+For a given SE, $z$ controls the the width of the interval.  A larger $z$ results in a wider interval.
+Let's review the $z$'s for a few different confidence levels.  
+
+Notice as we decrease the confidence level, the magnitude of $z$ decreases as well.
+
+```{r}
+qnorm((1-.95)/2) # 95%
+# -1.959964
+
+qnorm((1-.90)/2) # 90% #less confidnnt -> z is getting smaller -> interval is getting narrower
+# -1.644854
+
+qnorm((1-.80)/2) # 80% #less confident
+#  -1.281552
+```
+
+
+> Suppose our point estimate for $p$ is $\hat{p} = .55$ and the SE($\hat{p}$) = .10.  If a confidence interval is given as $[.3855, .7145]$, what confidence level was used to define this interval?
+
+```{r}
+p_hat <- .55
+se_p <- .10
+a <- .3855 #lower bound
+b <- .7145 #upper bound
+
+## Find margin of error for interval
+(me <- p_hat - a) #margin of error
+
+## Find the standard normal quantile:  me = z*se
+(z <- me/se_p)
+
+gnorm(mu=0,sigma=1,a=-4,b=4) +
+  geom_vline(aes(xintercept=z),color="red",linetype="dashed") +
+  geom_vline(aes(xintercept=-z),color="red",linetype="dashed")
+
+
+## Find the tail probability
+gnorm(mu=0,sigma=1) +
+  geom_vline(aes(xintercept=z),color="red",linetype="dashed") +
+  geom_vline(aes(xintercept=-z),color="red",linetype="dashed") +
+  geom_norm_fill(a=-4,b=-z,fill="cyan") +
+  geom_norm_fill(a=z,b=4,fill="cyan")
+
+1 - pnorm(z) + pnorm(-z) # tail probability
+2*pnorm(-z)  # by symmetry of the normal density curve
+
+## Hence, the confidence level is 
+1 - 2*pnorm(-z)
+pnorm(z) - pnorm(-z)
+#90 percent confident
+```
+
+
+
+
+
+
+
+
+
+
+# Lecture:  More on Confidence Intervals for p
+
+
+## Complications
+
+There are some complications with our confidence intervals for p:
+
+- The standard error is $\text{SE}(\hat{p}) = \sqrt{ \frac{p(1-p)}{n} }$ which also needs to be estimated as we do not know $p$.
+- The binomial distribution is discrete, and so the sampling distribution of $\hat{p}$ is also discrete and not exactly normal.
+
+Both of these complications can lead to inaccuracies in the confidence interval approach.
+
+We will examine this with simulation in a future lecture.
+
+
+## Wald Method
+
+- The Wald method uses the observed relative frequency as the point estimate for $p$:
+
+$$
+\hat{p} \pm 1.96 \sqrt{ \frac{\hat{p}(1-\hat{p})}{n} }
+$$
+
+For our observed data,
+we get
+
+```{r wald-ci}
+binom_se <-  function(n,p) #standard error
+{
+  return ( sqrt( p*(1-p)/n) )
+}
+
+binom_ci <- function(est,se,conf) #confidence interval
+{
+  z <- qnorm(1 - (1 - conf)/2)
+  me <- z * se
+  ci <- est + c(-1,1)*me
+  return(ci)
+}
+
+x <- 60
+n <- 90
+p_hat <- x/n
+
+se_wald = binom_se(n,p_hat)
+
+se_wald
+
+ci_wald <- binom_ci(p_hat,se_wald,0.95)
+
+ci_wald
+```
+
+
+## Agresti-Coull Method
+
+- The Agresti-Coull method uses a different point estimate and standard error.
+- Rather using $\hat{p} = \frac{x}{n}$:
+    - Act as if there were four additional observations, two successes and two failures in the sample.
+    - $\tilde{p} = \frac{x+2}{n+4}$
+    - This is an example of a *shrinkage* estimate, which pulls the observed proportion a bit toward 0.5.
+    - Then use the modified point estimate and sample size to estimate the standard error and confidence interval.
+    
+$$
+\tilde{p} \pm 1.96 \sqrt{ \frac{\tilde{p}(1-\tilde{p})}{n+4} }
+$$
+
+```{r agresti-coull-ci}
+x <- 60
+n <- 90
+
+p_tilde <- (x+2)/(n+4)
+p_tilde
+
+se_agresti <- binom_se(n+4,p_tilde)
+se_agresti
+
+ci_agresti <- binom_ci(p_tilde,se_agresti,0.95)
+ci_agresti
+```
+
+Theory suggests that for most values of $p$ and $n$, this approach will be more accurate.
+
+
+
+
+
+
+
+
+
+
+# Lecture:  Evaluating the accuracy of Confidence Intervals for p
+
+Let's generate a realization from a binomial distribution with $n=90$.  In practice we do not know what the value for $p$ is...this is why we want to do inference on it!  However, we are going to specify a value for $p$, and then pretend we don't know it.
+
+```{r}
+set.seed(123)
+
+## Generate data
+n <- 90
+p <- 0.25
+x <- rbinom(1, n, p)
+x
+
+## Compute our point estimates
+p_hat <- x/n
+p_hat
+p_tilde <- (x+2)/(n+4)
+p_tilde
+
+# Two different point estimates with wald and agresti methods
+
+```
+
+Now let's get our confidence intervals.
+
+```{r}
+se_wald <- binom_se(n,p_hat)
+se_wald
+ci_wald <- binom_ci(p_hat,se_wald,0.95)
+
+se_agresti <- binom_se(n+4,p_tilde)
+se_agresti
+ci_agresti <- binom_ci(p_tilde,se_agresti,0.95)
+
+rbind(ci_wald, ci_agresti)
+```
+
+Since we know the true value of $p$ (we selected it), we can check if our intervals captured the true $p$.  
+Both intervals captured our $p$.  Yay!  Does this always happen?
+
+We can check the accuracy of the intervals, more specifically the *capture probability* (aka coverage probability).  This is the long-run performance of the intervals if we repeatedly drew samples of the same size from the same population.  Ideally this would match the confidence level (e.g., 95%).
+
+In the next chunk, we will do the same thing as above, but a bunch more times. 
+Also, we will focus on the Wald intervals here, but you can repeat this exercise for the Agresti-Coull method on your own.
+
+```{r}
+set.seed(123)
+n <- 90
+p <- 0.25
+N <- 1000 # Number of repetitions
+captured_p <- rep(NA,N)
+for(i in 1:N){
+  x <- rbinom(1, n, p)
+  p_hat <- x/n
+  se_wald <- binom_se(n,p_hat)
+  a_wald <- p_hat - qnorm(0.975)*se_wald
+  b_wald <- p_hat + qnorm(0.975)*se_wald
+  captured_p[i] <- ifelse(a_wald<=p & b_wald>=p, 1, 0)
+}
+
+## How many intervals captured our p?
+sum(captured_p)
+
+## What's our estimate for the capture probability?
+mean(captured_p)
+
+## Try running the above code a few more times (be sure to avoid the set.seed() command or you will keep getting the same answer)
+## Try changing the value of N
+```
+We'll do more simulations in other lectures to evaluate and compare the performance of our confidence intervals.
+
+
+
+
+
+
+
+
+
+
+# Lecture:  Confidence Interval Simulation Study
+
+
+## Explore Confidence Intervals by Simulation
+
+```{r compare-wald-agresti}
+set.seed(96573)
+N <- 1000000 # Number of repetitions
+p <- 2/3
+n <- 90
+rx <- rbinom(N,n,p) # Large sample of Binomial(n,p) random variables
+
+hist(rx)
+
+## Consider all the possible observed values for X
+## Calculate confidence intervals using the Wald and Agresti-Coull Methods
+df <- tibble(
+  n = rep(90,91),
+  x = 0:90,
+  p_hat = x/n,
+  p_tilde = (x+2)/(n+4),
+  se_wald = binom_se(n,p_hat),
+  se_agresti = binom_se(n+4,p_tilde),
+  a_wald = p_hat - qnorm(0.975)*se_wald,
+  b_wald = p_hat + qnorm(0.975)*se_wald,
+  a_agresti = p_tilde - qnorm(0.975)*se_agresti,
+  b_agresti = p_tilde + qnorm(0.975)*se_agresti
+)
+
+## Find the range of Wald intervals that would capture our p = 2/3
+df_wald <- df %>%
+  filter(a_wald <= p & p <= b_wald) %>%
+  summarize(minx = min(x), maxx = max(x))
+
+## Estimated Wald coverage probability
+mean(rx >= df_wald$minx & rx <= df_wald$maxx)
+
+
+## Find the range of Agresti-Coull intervals that would capture our p = 2/3
+df_agresti <- df %>%
+  filter(a_agresti <= p & p <= b_agresti) %>%
+  summarize(minx = min(x), maxx = max(x))
+
+## Estimated Agresti-Coull coverage probability
+mean(rx >= df_agresti$minx & rx <= df_agresti$maxx)
+```
+
+
+## Observations
+
+- For the size of the simulation, we expect to match the true capture probability to within about `r signif(binom_se(N,0.95),2)`.
+- For $n=90$ and $p=2/3$, neither method matches the exact 95% capture probability.
+- It would be interesting to repeat this calculations for different values of $p$ for $n=90$ (and then again for other $n$).
+
+
+## Direct calculations
+
+Rather than simulating a large number of binomial random variables to calculate the coverage probability of the confidence intervals, we can directly calculate the coverage probabilities.
+
+```{r direct-compare-wald}
+## Calculate the coverage probability
+calc_wald <- function(n,p,conf=0.95)
+{
+  z <- qnorm(1 - (1-conf)/2)
+  df <- tibble(
+    x = 0:n,
+    d = dbinom(x,n,p), # we use dbinom instead of simulating with rbinom
+    p_hat = x/n,
+    se = sqrt( p_hat*(1-p_hat)/n ),
+    a = p_hat - z*se,
+    b = p_hat + z*se)
+  prob <- df %>%
+    filter(a < p & p < b) %>%
+    summarize(prob = sum(d)) %>%
+    pull(prob)
+  return ( prob )
+}
+
+capture_wald <- function(n,seq_p,conf=0.95)
+{
+  prob <- numeric(length(seq_p))
+  for ( i in 1:length(seq_p))
+    prob[i] <- calc_wald(n,seq_p[i],conf)
+    df <- tibble(p = seq_p,prob=prob)
+  return ( df )
+}
+
+plot_wald <- function(n,seq_p,conf=0.95,...)
+{
+  capture_wald(90,seq(0.1,0.9,0.005)) %>%
+  ggplot(aes(x=p,y=prob)) +
+    geom_line(...) +
+    geom_hline(yintercept = conf, linetype = "dashed") +
+    ggtitle("Wald Method Capture Probability",
+            subtitle = paste("n = ",n)) +
+    theme_bw()
+}
+
+plot_wald(90,seq(0.1,0.9,length.out=501),conf=0.95,color="red")
+```
+
+
+```{r direct-compare-ac}
+calc_agresti <- function(n,p,conf=0.95)
+{
+  z <- qnorm(1 - (1-conf)/2)
+  df <- tibble(
+    x = 0:n,
+    d = dbinom(x,n,p),
+    p_tilde = (x+2)/(n+4),
+    se = sqrt( p_tilde*(1-p_tilde)/(n+4) ),
+    a = p_tilde - z*se,
+    b = p_tilde + z*se)
+  prob <- df %>%
+    filter(a < p & p < b) %>%
+    summarize(prob = sum(d)) %>%
+    pull(prob)
+  return ( prob )
+}
+
+capture_agresti <- function(n,seq_p,conf=0.95)
+{
+  prob <- numeric(length(seq_p))
+  for ( i in 1:length(seq_p))
+    prob[i] <- calc_agresti(n,seq_p[i],conf)
+  df <- tibble(p = seq_p,prob=prob)
+  return ( df )
+}
+
+plot_agresti <- function(n,seq_p,conf=0.95,...)
+{
+  capture_agresti(90,seq(0.1,0.9,0.005)) %>%
+  ggplot(aes(x=p,y=prob)) +
+    geom_line(...) +
+    geom_hline(yintercept = conf, linetype = "dashed") +
+    ggtitle("Agresti-Coull Method Capture Probability",
+            subtitle = paste("n = ",n)) +
+    theme_bw()
+}
+
+plot_agresti(90,seq(0.1,0.9,length.out=501),conf=0.95,color="red")
+
+
+```
+
+
+
+
+
+
+
+
+
+
+# Lecture:  Binomial Likelihood function
+
+## Recall:  Our Statistical Model
+
+- $X$ is the number of pro-social choices that subject A makes in 90 trials.
+- Assume:
+    - each trial could be pro-social or selfish
+    - 90 trials was predetermined
+    - trials are independent (this assumption is debatable)
+    - same probability of pro-social choice for each trial (this assumption is debatable)
+- Under these assumptions, $X$ has a binomial distribution.
+- Parameters are:
+    - $n$, the number of trials. Here $n=90$.
+    - $p$, an unknown long-run probability that this chimpanzee makes the pro-social choice. (We may be interesting in inference on this parameter using the data.)
+    
+The model is:
+
+$$
+X \mid p \sim \text{Binomial}(n,p)
+$$
+
+The probability mass function for the binomial distribution is
+
+$$
+P(X = x) = {n\choose x}p^x(1-p)^{n-x}
+$$
+```{r}
+n <- 90
+p <- 2/3
+gbinom(n, p)
+```
+
+Once we observe a value for $x$, we can consider $P(X = x)$ to be a function of the parameter $p$ instead of as a function of $x$.  This new function is referred to as a *likelihood function*.
+
+$$
+L(p \mid X=x) = {n\choose x}p^x(1-p)^{n-x}
+$$
+```{r}
+set.seed(1234)
+n <- 90
+x <- rbinom(1,n,p=2/3) # generate an observed x
+
+df <- tibble(pseq=seq(0,1,by=.01), L=dbinom(x,n,pseq))
+
+ggplot(df, aes(pseq, L)) +
+  geom_point() +
+  xlab("p") +
+  ylab("L(p | X=x)") +
+  ggtitle(paste0("L(p|X=",x,")")) +
+  geom_vline(xintercept=x/n, color="red",linetype="dashed")
+
+## Run this code a few more times (avoiding the set.seed)
+## Try inputing a low value for x - what happens to the likelihood function?
+```
+
+The likelihood function gives us "likely" values of $p$ given the observed data.  
+Notice that the maximum value of the likelihood is at our $\hat{p} = \frac{x}{90}$.
+
+It turns out the *maximum likelihood estimate* for a binomial distribution is our $\hat{p} = \frac{x}{n}$. 
+
+Likelihood functions are commonly used in statistics, and they will come up again later this semester.
+
+
+
+
+
+
+
+

@@ -1,0 +1,530 @@
+---
+title: "Madison Weather"
+author: "Jessi Kehe"
+output: html_document
+---
+This R Markdown document was adapted from documents created by Professor Bret Lager.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo=TRUE,message=FALSE,warning=FALSE,cache=TRUE,autodep=TRUE,cache.comments=FALSE)
+library(tidyverse)
+library(lubridate)
+
+## reset color defaults
+## Source https://data-se.netlify.com/2018/12/12/changing-the-default-color-scheme-in-ggplot2/
+library(viridis)
+library(scales)
+
+#### continuous variables color and fill
+options(ggplot2.continuous.colour = "viridis")
+options(ggplot2.continuous.fill = "viridis")
+
+#### use viridis for discrete scales
+scale_colour_discrete <- scale_colour_viridis_d
+scale_fill_discrete <- scale_colour_viridis_d
+
+## reset default theme
+theme_set(theme_minimal())
+```
+
+
+# Lecture:  preparing data
+
+We will be working with data set containing weather data on Madison collect over a number of years from  different weather stations.  In addition to investigating different scientific questions on the data, we will also be learning about the [`dplyr` package](https://dplyr.tidyverse.org/) from `tidyverse` which is "a grammar of data manipulation."  
+
+### Import and Transform Data
+
+Some details about loading our data:  
+
+* The data file has one row for each date and weather station
+* The following block of code will read in the data, specifying the type of each variable  
+    - This step is necessary for this particular data set because `read_csv()` tries to guess the variable type from the first 1000 rows and some of these variables have missing data for all of the first 1000 rows; these get set to logical, which is wrong.
+
+We will practice more with reading data later in the semester
+(for example, from Excel files, text files, URLs, and so one).
+
+```{r import-transform-data}
+## Read in the data
+## Specify the type
+#mw = read_csv("madison-weather-2020.csv")
+mw = read_csv("madison-weather-2020.csv",
+              col_types = cols(
+  STATION = col_character(),
+  NAME = col_character(),
+  LATITUDE = col_double(),
+  LONGITUDE = col_double(),
+  ELEVATION = col_double(),
+  DATE = col_date(format = ""),
+  AWND = col_double(),
+  PRCP = col_double(),
+  SNOW = col_double(),
+  SNWD = col_double(),
+  TAVG = col_double(),
+  TMAX = col_double(),
+  TMIN = col_double(),
+  WSF1 = col_double()
+))
+
+## Keep an original copy for below
+mw_original = mw
+```
+
+### Examine Variables
+
+```{r examine}
+## Show the dimensions
+dim(mw)
+## View the data; same as clicking on it in the Environment tab (upper right window)
+#View(mw)
+```
+- There are over 100,000 observations
+- There are 14 variables
+- The Names in the `NAME` variable are not easy to work with
+
+### Mutating Columns
+
+#### Example using recode()
+
+In R, valid names only use numbers, letters, and the underscore `_` and period `.` characters.
+
+  * Names are case-sensitive, so `a` and `A` are different.
+  * Names cannot begin with a number.
+
+```{r recode-name-original}
+## See what the complete list of names are:
+mw %>% # take this data frame and then
+  select(NAME) %>% # grab the NAME variable and then
+  distinct()# show unique values
+```
+
+```{r recode-name-pipe-note}
+## ------------------ an aside on the value of the pipe %>% -----------
+## non-pipe equivalent number 1
+temp1 = select(mw,NAME)
+temp2 = distinct(temp1)
+temp2
+rm(temp1,temp2)
+
+## non-pipe equivalent number 2
+## - read from the inside out
+## - not too bad with only two functions
+## - really hard to read with more complicated sets of instructions
+distinct(select(mw,NAME))
+## --------------------------------------------------------------------
+```
+
+```{r recode-name}
+## recode the NAME variable
+## notice that names that do not follow the rules need to be bracketed with back ticks
+
+## mutate() syntax:
+##   mutate(.data, variable-name = value)
+## usually called from a pipe, so we do not specify the data frame .data
+##
+## if variable-name exists, replaces the value with new value
+## if the variable-name is not in the data frame, then create a new variable
+
+## recode() syntax: use inside of mutate() or transmute()
+## recode(variable-name, old-value-1 = "new-value-1", old-value-2 = "new-value-2", ...)
+## See help (?recode) for more examples for other types of variables
+
+## Notice that the old names do not have quotes
+##   - they might have back ticks
+## But the new names do have quotes
+## Generally speaking, in tidyverse functions, you do not need quotes around names of variables in the data frame on which action is taking, but names not in this data frame need quotes
+mw <- mw %>%
+  mutate(NAME = recode(NAME,
+                       `UW ARBORETUM MADISON, WI US` = "Arboretum",
+                       `CHARMANY FARM, WI US` = "Charmany",
+                       `MADISON DANE CO REGIONAL AIRPORT, WI US` = "Airport",
+                       `MADISON WEATHER BUREAU CITY, WI US` = "Bureau",
+                       `MADISON MUNICIPAL AIRPORT, WI US`= "Municipal_Airport"))
+```
+
+#### Example using select() and rename()
+
+- The dplyr function `select()` will select variables from a data frame.
+- The dplyr function `rename()` changes the name.
+
+```{r select-rename}
+## Select a few columns.
+## Rename the variables with lower case letters
+mw = mw %>%
+  select(NAME,DATE,PRCP,SNOW,TMAX,TMIN) %>%
+  rename(name = NAME,
+         date = DATE,
+         prcp = PRCP,
+         snow = SNOW,
+         tmax = TMAX,
+         tmin = TMIN)
+```
+
+#### Other select() Examples
+
+```{r select-examples}
+## names() is a base R function to get/set the names of an object
+## on a data frame, it returns the names of the variables
+## These examples are meant to work with the original data set.
+## Use mw_original which was created above after reading in the data
+
+mw_original %>%
+  names()
+```
+
+```{r select-examples-minus}
+## minus
+mw_original %>%
+  select(-STATION) %>%
+  names()
+```
+
+```{r select-examples-partial}
+## partial reorder using everything()
+mw_original %>%
+  select(STATION,TMAX,TAVG,TMIN,everything()) %>%
+  names()
+```
+
+```{r select-examples-2}
+## examples with starts_with(), ends_with(), and contains()
+mw_original %>%
+  select(NAME,starts_with("T")) %>%
+  names()
+
+mw_original %>%
+  select(ends_with("E")) %>%
+  names()
+
+mw_original %>%
+  select(contains("AT")) %>%
+  names()
+```
+
+
+
+# Lecture:  filter() and summarize()
+
+#### Eliminate weather stations with many missing observations
+
+```{r filter-example}
+## Find earliest and latest date
+## Find number of dates in range
+## Find number of missing observations in range
+
+mw %>%
+  group_by(name) %>%
+  summarize(min = min(date), # earliest date by name
+            max = max(date), # most recent date by name
+            n = max - min + 1, # total number of days at named station
+            na = sum(date >= min & date <= max & is.na(tmax))) # number of days at the named station with no tmax measurements
+```
+
+```{r filter-example-airport}
+## Decide to use all Airport data and only use Bureau data through 1939-09-30
+## vertical bar `|` mean elementwise `OR'
+## Note use of double equal signs == to check equality
+#--> This is different from a single equal sign = used for assignment or labeling function arguments
+## Keep rows where name is "Airport" or where the date is prior to October 1, 1939
+## All of the early dates are at "Bureau"
+
+mw = mw %>%
+  filter(name == "Airport" | (name == "Bureau" & date < "1939-10-01") )
+
+## Double check
+mw %>%
+  group_by(name) %>%
+  summarize(min = min(date),max=max(date))
+```
+
+```{r filter-example-airport-na}
+## Check missing data
+## Here is an example of defining a function in place
+## and passing it as an argument to another function
+mw %>%
+  summarize_all(function(x) sum(is.na(x)))
+
+## Here is an alternative:
+## define and create a function (see R4DS Chapter 19)
+## Pass it to the summarize_all()
+count_na = function(x)
+{
+  return( sum(is.na(x)) )
+}
+
+mw %>%
+  summarize_all(count_na)
+
+## To study temperature, drop snow and then drop missing data
+## Later, we can add snow back in if we want to examine snowfall.
+mw <- mw %>%
+  select(-snow) %>%
+  drop_na()
+str(mw)
+```
+
+#### Summarize Examples
+
+```{r summarize-year}
+## Calculate average temperature and total precipitation by year
+## Drop partial year of 2020
+## Add a period for 30-year periods from 1869 through 2019
+breaks = seq(1869,2019,30)
+labels = str_c((breaks+1)[-6],breaks[-1],sep="-")
+mw_year = mw %>%
+  mutate(tavg = (tmin+tmax)/2) %>%
+  mutate(year = year(date)) %>%
+  filter(year < 2020 & year > 1869) %>%
+  group_by(year) %>%
+  summarize(n = n(),
+            tmin = mean(tmin),
+            tavg = mean(tavg),
+            tmax = mean(tmax),
+            prcp = sum(prcp)) %>%
+  mutate(period = cut(year,
+                      breaks = breaks,
+                      labels = labels))
+str(mw_year)
+```
+
+
+```{r summarize-month}
+## Summarize by month and period
+mw_month = mw %>%
+  mutate(tavg = (tmin+tmax)/2) %>%
+  mutate(month = month(date, label=TRUE)) %>%
+  mutate(year = year(date)) %>%
+  filter(year < 2020 & year > 1869) %>%
+  mutate(period = cut(year,
+                      breaks = breaks,
+                      labels = labels)) %>%
+  group_by(period,month) %>%
+  summarize(n=n(),
+            tmin = mean(tmin),
+            tmax = mean(tmax),
+            tavg = mean(tavg),
+            prcp = sum(prcp))
+mw_month
+```
+
+## Daily average temperature by period, month, and day
+
+Calculate and graph the daily average temperature by period, month, and day.
+Graph with lines using different colors for each period.
+
+Does it look like the average temperature is increasing over time?
+
+```{r daily-average-temps}
+mw_day <- mw %>%
+  mutate(tavg = (tmin+tmax)/2) %>%
+  mutate(year = year(date)) %>%
+  mutate(month = month(date, label=TRUE)) %>%
+  mutate(day = day(date)) %>%
+  filter(year < 2020 & year > 1869) %>%
+  mutate(period = cut(year,
+                      breaks = breaks,
+                      labels = labels)) %>%
+  group_by(period,month,day) %>%
+  summarize(n=n(),tavg = mean(tavg))
+mw_day
+```
+
+```{r daily-average-temps-plot}
+ggplot(mw_day, aes(x=day,y=tavg,color=period)) +
+  geom_line() +
+  facet_grid(~month)
+
+mw_day %>%
+  filter(period == "1870-1899" | period == "1990-2019") %>%
+  ggplot(aes(x=day,y=tavg,color=period)) +
+  geom_line() +
+  facet_grid(~month) +
+  scale_x_continuous(limits = c(0, 31),
+      breaks = c(0, 15, 30))
+```
+
+
+# Lecture:  Temperature Questions
+
+The previous plots raise some questions.
+
+### 1
+
+> What is the average daily maximum/average/minimum temperature by period and month?
+
+```{r temp-period-summary}
+## preliminary calculations to add variables to the daily data
+## Much of this code was copied from above
+## Create a second data frame mw2 which adds columns for tavg, year, month, day, and period
+## and eliminates the partial 2020 year.
+
+mw2 <- mw %>%
+  mutate(tavg = (tmin+tmax)/2) %>%
+  mutate(year = year(date)) %>%
+  mutate(month = month(date, label=TRUE)) %>%
+  mutate(day = day(date)) %>%
+  filter(year < 2020 & year > 1869) %>%
+  mutate(period = cut(year,
+                      breaks = breaks,
+                      labels = labels)) %>%
+  arrange(date)
+
+## answer the question
+mw2 %>%
+  group_by(month,period) %>%
+  summarize(tmax = mean(tmax),
+            tavg = mean(tavg),
+            tmin = mean(tmin)) #%>%
+  #pivot_wider(names_from=period,values_from=tmax) ## This is a preview of an upcoming topic to reshape data
+```
+
+### 2
+
+> What is the slope of a regression line by average temperature by period and month? Which months have the steepest increases and decreases?
+
+```{r temp-slope-by-period-and-month}
+get_slope = function(x,y)
+{
+  fit = lm(y ~ x)
+  return( (coef(fit))[2] )
+}
+
+mw2 %>%
+  group_by(month,period) %>%
+  summarize(slope = get_slope(day,tavg)) %>%
+  pivot_wider(names_from=period,values_from=slope) #%>% ## Preview of a tidyr command
+  # ungroup() %>%
+  # mutate(month_mean = round(rowMeans(select(.,c(2,3))),2))
+```
+
+> The months with the largest warming trends from beginning to end are March and April
+
+> The months with the largest cooling trends are September through November
+
+
+### 3
+
+> Has there been a change in extreme temperature events over time? Compare maximum and minimum temperatures for the month by period and month.
+
+```{r extreme-temps-by-period-and-month}
+mw_day_extreme <- mw %>%
+  mutate(year = year(date)) %>%
+  mutate(month = month(date, label=TRUE)) %>%
+  mutate(day = day(date)) %>%
+  filter(year < 2020 & year > 1869) %>%
+  mutate(period = cut(year,
+                      breaks = breaks,
+                      labels = labels)) %>%
+  group_by(period,month,day) %>%
+  summarize(n=n(), tmax = mean(tmax), tmin = mean(tmin))
+```
+
+```{r extreme-temps-by-period-and-month-plot-max}
+mw_day_extreme %>%
+  filter(period == "1870-1899" | period == "1990-2019") %>%
+  ggplot(aes(x=day,y=tmax,color=period)) +
+    geom_line() +
+    facet_grid(~month) +
+    scale_x_continuous(limits = c(0, 31),
+      breaks = c(0, 15, 30))
+```
+
+```{r extreme-temps-by-period-and-month-plot-min}
+mw_day_extreme %>%
+  filter(period == "1870-1899" | period == "1990-2019") %>%
+  ggplot(aes(x=day,y=tmin,color=period)) +
+    geom_line() +
+    facet_grid(~month) +
+    scale_x_continuous(limits = c(0, 31),
+      breaks = c(0, 15, 30))
+```
+
+
+
+# Lecture:  Precipitation Questions
+
+
+### 4
+
+> Create a table named mw_pr_4 that has one row per month and day (so 366 rows) with columns named for month, day, pmax (maximum precipitation), and pmin (minimum precipitation). 
+
+```{r mw_pr_4}
+mw_pr_4 = mw2 %>%
+  select(date,period,year,month,day,prcp) %>%
+  drop_na() %>%
+  group_by(month,day) %>%
+  summarize(n=n(),pmax = max(prcp),pmin = min(prcp))
+```
+
+### 5
+
+> Create a plot with a line segment from pmin to pmax for each day of the year. Use geom_segment() to add the lines and use a facet command (either facet_wrap() or facet_grid()) to draw the lines for each month in a different panel.
+
+```{r mw_pr_5}
+ggplot(mw_pr_4) +
+  geom_segment(aes(x=day,xend=day,y=pmin,yend=pmax)) +
+  facet_wrap(~month,nrow=1) +
+  #facet_grid(.~month) + #rows ~ columns
+  xlab("Day of the Month") +
+  ylab("Precipitation (inches)") +
+  ggtitle("Madison Record Daily Precipitation") +
+  scale_x_continuous(breaks = c(0,30))
+```
+
+### 6
+
+> Filter the Madison weather data set to keep only days that achieve the record high precipitation for that day (including ties) and select the period, year, month, day, and pmax variables. 
+
+```{r mw_pr_6}
+mw_pr_6 = mw2 %>%
+  select(date,period,year,month,day,prcp) %>%
+  drop_na() %>%
+  group_by(month,day) %>%
+  slice_max(prcp, n=1) %>% #?slice_max()
+  arrange(month,day)
+mw_pr_6
+```
+
+### 7
+
+> Use the data from the previous problem. Count for every year the number of record high precipitation events that occur. Plot these counts by year and add a trend line/curve. Does it appear that the rate of record high precipitation days is increasing?
+
+```{r mw_pr_7}
+mw_pr_7 = mw_pr_6 %>%
+  group_by(period,year) %>%
+  summarize(n=n())
+mw_pr_7
+
+ggplot(mw_pr_7, aes(x=year,y=n)) +
+  geom_point(aes(color=period)) +
+  geom_smooth(se=FALSE) +
+  ylab("Number of Record High Precipitation Events")
+```
+
+
+### 8
+
+> Among all days with precipitation greater than zero, find the cutoff value for the top one percent. Count the number of these top one percent precipitation days by period. Is there a trend of more extreme precipitation events in more recent years?
+
+```{r mw_pr_8}
+topone <- mw %>%
+  select(prcp) %>%
+  drop_na() %>%
+  filter(prcp > 0) %>%
+  summarize(q99 = quantile(prcp,prob=0.99))
+topone
+
+mw_pextreme <- mw2 %>%
+  select(period,date,year,month,day,prcp) %>%
+  drop_na() %>%
+  filter(prcp >= topone$q99) %>%
+  group_by(period) %>%
+  summarize(n=n())
+mw_pextreme
+
+ggplot(mw_pextreme, aes(x=period,y=n)) +
+  geom_col() +
+  xlab("30-year period") +
+  ylab("# of top 1% events") +
+  ggtitle("Distribution of Madison top 1% Precipitation Events",
+          subtitle="1870-2019")
+```

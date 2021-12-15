@@ -1,0 +1,582 @@
+---
+title: "Probability"
+author: "Jessi Kehe"
+output: html_document
+---
+This R Markdown document was adapted from documents created by Professor Bret Larget.
+
+### Setup details
+
+* You will need the package `tidyverse` for these lectures.   
+
+* This assumes you have the R script `viridis.R` two steps back from the working directory (`"../../scripts/viridis.R"`).  Be sure to adjust the code if you have this script in a different location.
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo=TRUE,message=FALSE,warning=FALSE,cache=TRUE,autodep=TRUE,cache.comments=FALSE)
+library(tidyverse)
+library(lubridate)
+## Note: this code assumes viridis.R is two steps up the file directory tree in a `scripts` folder
+source("C:/stat_240/scripts/viridis.R")
+```
+
+```{r gbinom, include=FALSE}
+## old code to visualize the binomial distribution
+gbinom <- function(n,p,scale=FALSE,
+                  a=ifelse(scale,floor(n*p-4*sqrt(n*p*(1-p))),0),
+                  b=ifelse(scale,ceiling(n*p+4*sqrt(n*p*(1-p))),n),
+                  main=NULL,...) {
+  # make sure a and b are integers
+  a <- round(a)
+  b <- round(b)
+  # make sure a < b
+  if(a > b) {
+    temp = a
+    a = b
+    b = temp
+  }
+  # make sure a and b are in range
+  if(a < 0) a = 0
+  if(b > n) b = n
+  # create the sequence of possible values to graph
+  x <- seq(a,b)
+  # compute the probabilities to graph
+  probability <- dbinom(x,n,p)
+  # Choose a title for the plot if one is not passed
+  if(is.null(main)){
+    main <- paste("Binomial(",n,",",p,")")
+  }
+  
+  # save the graph as an object which can be returned
+  graph <- ggplot(data.frame(x,probability),aes(x=x,y=probability,xend=x,yend=0),...) +
+      geom_segment(...) +
+      xlab('x') +
+      ylab('Probability') +
+      geom_hline(yintercept=0) +
+      ggtitle(main)
+  graph
+  # return the graph object, but do so invisibly so no output is shown on the screen
+  # return(invisible(graph))
+}
+```
+
+
+```{r gpois, include=FALSE}
+## old code to visualize the binomial distribution
+gpois <- function(lambda,scale=FALSE,
+                  a=NULL,
+                  b=NULL,
+                  main=NULL,...) {
+  
+  if ( is.null(a) ){a <- qpois(0.0001,lambda)}
+  if ( is.null(b) ){b <- qpois(0.9999,lambda)}
+  
+  # make sure lambda is an integer
+  lambda <- round(lambda)
+
+  # create the sequence of possible values to graph
+  x <- seq(a,b)
+  # compute the probabilities to graph
+  probability <- dpois(x,lambda)
+
+  # save the graph as an object which can be returned
+  graph <- ggplot(data.frame(x,probability),aes(x=x,y=probability,xend=x,yend=0),...) +
+      geom_segment(...) +
+      xlab('x') +
+      ylab('Probability') +
+      geom_hline(yintercept=0) +
+      ggtitle(main)
+  graph
+  if ( is.null(main) )graph <- graph + ggtitle(paste("Poisson(",lambda,")"))
+  
+  
+  return (graph)
+}
+```
+
+
+```{r gnorm, include=FALSE}
+geom_norm_density <- function(mu=0,sigma=1,a=NULL,b=NULL,color="blue",...)
+{
+  if ( is.null(a) ){a <- qnorm(0.0001,mu,sigma)}
+  if ( is.null(b) ){b <- qnorm(0.9999,mu,sigma)}
+  x <- seq(a,b,length.out=1001)
+  df <- data.frame(x=x, y=dnorm(x,mu,sigma))
+  geom_line(data=df,aes(x=x,y=y),color=color,...)
+}
+
+geom_norm_fill = function(mu=0,sigma=1,a=NULL,b=NULL, fill="firebrick4",...)
+{
+  if ( is.null(a) ){a <- qnorm(0.0001,mu,sigma)}
+  if ( is.null(b) ){b <- qnorm(0.9999,mu,sigma)}
+  x <- seq(a,b,length.out=1001)
+  df <- data.frame(
+    x=x,
+    ymin=rep(0,length(x)),
+    ymax = dnorm(x,mu,sigma)
+  )
+  geom_ribbon(data=df,aes(x=x,ymin=ymin,ymax=ymax),fill=fill,...)
+}
+
+gnorm <- function(mu=0,sigma=1,a=NULL,b=NULL,color="blue", fill=NULL,title=TRUE,...)
+{
+  g <- ggplot()
+  
+  if ( !is.null(fill) ) g <- g + geom_norm_fill(mu,sigma,a,b,fill)
+  
+  g <- g +
+    geom_norm_density(mu,sigma,a,b,color,...) +
+    geom_hline(yintercept=0) +
+    ylab('density')
+
+  if ( title )
+    g <- g +
+      ggtitle(paste("N(",mu,",",sigma,")"))
+  return ( g )
+}
+```
+
+
+
+
+
+
+# Lecture:  Probability Distributions
+
+
+## Uncertainty
+
+* To this point in the semester, we have largely ignored uncertainty in our data.
+
+* But there are many sources and types of uncertainty we could consider:  
+  - measurement error  
+        - freeze dates of Madison lakes are partly subjective  
+        - weather observations are susceptible to error  
+  - unobserved data from unsampled cases in a population  
+        - In the obesity study, we had obesity data on samples of individuals  
+  - rerunning a random process
+        - We can think of the outcome of a sports event as a complicated succession of random events  
+        - If the same players and teams could replay a game under the same conditions, how might have outcomes been different?  
+  - prediction  
+        - What will the temperature be like tomorrow? Next year?  
+        - How many fantasy football points will Aaron Rodgers earn during the next game?  
+        - What will the median household income in zip code 53705 be next year?   
+
+* To discuss uncertainty, we need to develop an understanding of the subject of probability.
+
+
+
+## Probability
+
+* Probability is a branch of mathematics 
+* We will learn the subject quite informally  
+  - If you are interested in majoring in a quantitative field, I recommend taking a semester-long course in probability at some point in the future (if you haven't already)
+* Our overview of probability will focus on understanding uncertainty in statistical models.  
+* A statistical model will be a means to connect data with uncertainty to build a framework for inference.
+
+
+## Philosophical Views of the Nature of Probability
+
+* Probability is measured on a scale from 0 (no chance of occurring) to 1 (certain to occur).
+
+* One school of thought attaches a long-run frequency interpretation to probabilities  
+    - When a fair 6-sided die is rolled, the long-run frequency of observing a 1 is 1/6, so the probability of observing a 1 on any given doe roll is 1/6.  
+    - We arrive at 1/6 from an argument of symmetry and a model for “fairness”, not from actually rolling a physical die an infinite number of times.
+
+* Not all events to which we wish to attach probabilities are as easily thought of as infinitely repeatable.
+    - What is the probability that the high temperature will be above 40 degrees F tomorrow in Madison, WI?
+    - What is the probability that Aaron Rodgers will have more than 250 yards passing in his next football game?
+    - What is the probability that the Dow Jones average will go up over 500 points between now and the end of the year?
+
+* An alternative philosophical approach to probability describes a degree of belief with formal rules on how probabilities are updated when presented new information.  
+    - This Bayesian approach to probability is widely applicable, even in cases where a long-run frequency interpretation is challenging.  
+    - The Bayesian approach does require the statement of prior probability distributions, or statements about probability prior to seeing data.
+
+*  Regardless of the philosophical point of view adopted, we will apply principles of probability to applications of statistical models.
+
+
+
+## Basic Principles of Probability
+
+* A probability space is a mathematical formalism that specifies how to attach probabilities to a collection of possible outcomes and events
+
+* The basic rules are:
+    - the probability of any possible event is greater than or equal to zero
+    - the probability that some outcome from the collection of all possible outcomes occurs is one
+    - the probability of the union of mutually exclusive events is the sum of the individual probabilities
+
+* There are a number of rules that follow from these basic principles
+
+
+## Random Variables
+
+* A random variable is a function that attaches a numerical value to some random outcome.
+    - The weather in Madison will result in an observed maximum temperature
+    - On December 31, 2030, Lake Mendota will either be closed (at least 50% of the surface covered by ice) or not -- an indicator random variable takes the value 1 if it is closed and 0 if it is not.
+    - In his next football game, Aaron Jones will have some number of yards rushing
+    - For all US passengers arriving at O’Hare International airport today on flights that arrive between 5 and 6 pm, the average waiting time to go through customs will have a numerical value.
+    
+* The collection of all possible values that a random variable might take and the description of the probabilities of these outcomes is called the *distribution* of the random variable.
+
+* In practice, most distributions of random variables may be categorized as either:
+    - continuous (possible values along a continuum, but in practice, rounded to some degree of precision during measurement); or
+    - discrete (we can list the possible values, which are potentially infinite)
+
+* There are exceptions which are a mix
+    - the total amount of precipitation in a day could be zero (discrete) or some positive amount (continuous).
+    
+*  A distribution describes where the total amount of probability is distributed among the possible values.
+
+
+
+### Continuous Distributions
+
+For continuous random variables, we typically describe the distribution with a *probability density function* (pdf), a nonnegative function over the real line with a total area under the curve equal to one
+
+  - Probability is associated with areas over intervals under density curves to describe the probability that the random variables take a value in the interval
+  - There do exist continuous random variables not often seen in statistical models for which density functions do not exist
+    - Graduate courses in probability theory which require a lot more mathematics than we have are needed to study such distributions
+
+#### Example
+
+```{r continuous-examples, echo=FALSE}
+gnorm(mu=0,sigma=1)
+
+a <- 2
+b <- 5
+ggplot(tibble(x=c(a,b), y=1/(b-a)), aes(x,y)) +
+  geom_line(size=1) +
+  geom_segment(aes(xend=x, yend=rep(0,2)), size=1) +
+  geom_segment(aes(x=a-1, y=0, xend=a, yend=0)) +
+  geom_segment(aes(x=b+1, y=0, xend=b, yend=0)) +
+  ylim(c(0, 1/(b-a))) +
+  xlim(c(a-1, b+1)) +
+  scale_x_continuous(breaks = seq(a-1,b+1)) +
+  xlab("X") +
+  ylab("density")+
+  ggtitle(paste0("Uniform(",a, ", ", b, ")"))
+```
+
+
+### Discrete Distributions
+
+For discrete random variables, we typically describe the distribution with a *probability mass function* (pmf), a nonnegative function that attaches discrete amounts of probability to specific real numbers in a way that the sum of all such probabilities over all possible values of the random variable is equal to one.
+
+#### Example
+
+```{r discrete-examples, echo=FALSE}
+## Binomial distributions
+gbinom(n=5,p=.8)
+  
+gpois(5,color="red") +
+  geom_hline(yintercept=0)
+```
+
+
+### Mixed Distributions
+
+A mixed variable such as the total precipitation in a day, has a distribution that is a combination of discrete probability mass and continuous probability density such that the total amount of probability is equal to one.
+
+
+## Expectation
+
+* Expectation is a probability concept that you may think of as average.
+
+* The expected value of a random variable is:  
+      - the balancing point of the distribution  
+      - the value of the sample mean tends to the expected value as the sample size goes to infinity  
+      - the mean of the possible values, weighted by their probability  
+
+* If a random variable is designated $X$, we label its expected value $E(X)$
+
+* We can also take the expected value of a function of a random variable  
+      - For example, the expected value of the square of a random variable, $E(X^2)$
+      
+      
+### Mean
+
+* The mean of a random variable $X$ is $E(X)$
+
+* We often use the Greek letter $\mu$ to represent a mean
+
+* Some distributions do not have a finite mean  
+      - We do not see these often in statistical models
+
+
+### Standard Deviation / Variance
+
+* The variance of a random variable is the expected squared difference from the mean.
+
+* $\text{Var}(X) = E\left((X-\mu)^2\right)$ where $\mu = E(X)$
+
+* The standard deviation is the square root of the variance.
+
+* The variance is often denoted $\sigma^2$   
+
+* The standard deviation is then denoted as $\sigma$  
+
+*  By definition, the variance and the standard deviation cannot be negative.
+
+
+
+
+
+# Lecture:  Binomial Distribution
+
+
+## Binomial Distribution
+
+Binomial distributions are discrete distributions that consider the number of "successes" in a fixed series of n trials.
+
+Example:  Flipping a coin 10 times and recording the number of heads (successes) would follow a binomial distribution with n = 10 and probability of success p = .5 (assuming the coin is fair!).
+
+* Binomial distributions are used when we want to know about the occurrence of an event, not its magnitude.  
+  - In a clinical trial, a patient’s condition may improve or not. The binomial distribution would model the number of patients who improved, not how much better they feel.  
+
+
+#### The BINS acronym for binomial assumptions
+
+A binomial random variable satisfies the following properties:
+
+- B = **binary outcomes** (each trial may be categorized with two outcomes, conventionally labeled *success* and *failure*)
+- I = **independence** (results of trials do not affect probabilities of other trial outcomes)
+- N = **fixed sample size** (the sample size is prespecified and not dependent on outcomes)
+- S = **same probability** (each trial has the same probability of *success*)
+
+## Binomial Parameters
+
+- There are two parameters for the binomial distribution:
+    - $n$ which is the number of trials
+    - $p$ which is the *success* probability
+    
+- If X follows a binomial distribution with parameters $n$ and $p$, 
+we write $X \sim Bin(n, p)$
+    
+    
+## Binomial Moments
+
+- The mean is $\mu =np$
+- The variance is $\sigma^2 = np(1-p)$
+- The standard deviation is $\sigma = \sqrt{np(1-p)}$
+
+
+## Explore Binomial Graphs
+
+```{r binomial-graphs}
+n_options <- 2^seq(0, 12, by=2) # sample sizes to consider
+p_options <- c(.5, .1)  # probabilities to consider
+
+for(p in p_options){
+  par(mfrow = c(2,4))
+  for(n in n_options){
+    print(gbinom(n,p,color=ifelse(p==.5,"red","blue")) )
+  }
+  print(gbinom(n,p,color=ifelse(p==.5,"red","blue"),scale=TRUE) )
+}
+```
+
+## Binomial Probabilities
+
+$$
+P(X = k) = \binom{n}{k} p^k(1-p)^{n-k}, \qquad \text{for $k=0,1,\ldots,n$}
+$$
+```{r binomial-calc}
+n <- 5
+p <- .5
+k <- 2
+
+choose(n, k)
+factorial(n)/(factorial(k)*factorial(n-k)) # n! /(k!(n-k)!)
+
+choose(n, k)*p^k*(1-p)^(n-k)
+dbinom(k,n,p) # see below
+```
+
+
+## R Binomial Functions
+
+- `rbinom(n, size, prob)`
+- `dbinom(x, size, prob)`
+- `pbinom(q, size, prob)`
+- `qbinom(p, size, prob)`
+
+Note that with these functions, the parameters for the Binomial are `size` and `prob`
+(what we've been referring to as n and p, respectively)
+
+
+#### Demonstrations
+
+```{r rbinom}
+# Simulate binomial random variables
+n <- 5
+p <- .5
+(x <- rbinom(6, n, p))
+mean(x)
+n*p
+
+var(x)
+sd(x)
+n*p*(1-p)
+```
+```{r dbinom}
+## Binomial "density" calculations
+dbinom(0:n, n, p)
+
+```
+
+
+```{r dbinom-plot}
+## Binomial "density" plot
+gbinom(n,p) 
+```
+
+
+```{r pbinom}
+## Binomial distribution calculations
+## P(X <= x) = F(x), where F is the distribution function.
+
+# P(X <= 3):
+pbinom(3, n, p)
+dbinom(0, n, p) + dbinom(1, n, p) + dbinom(2, n, p) + dbinom(3, n, p)
+1 - dbinom(4, n, p) - dbinom(5, n, p)
+
+# P(X > 3):
+1 - pbinom(3, n, p)
+pbinom(3, n, p, lower.tail=FALSE)
+dbinom(4, n, p) + dbinom(5, n, p)
+
+# P(X < 3):
+pbinom(3, n, p) - dbinom(3, n, p)
+pbinom(2, n, p) # P(X <= 2)
+```
+
+
+```{r qbinom}
+## Binomial quantile calculations
+## Docs:  The quantile is defined as the smallest value x such that F(x) ≥ p, where F is the distribution function.
+qbinom(.2, n, p)
+pbinom(2, n, p)
+dbinom(0, n, p) + dbinom(1, n, p) + dbinom(2, n, p)
+
+
+```
+
+
+
+
+
+
+
+
+
+
+# Lecture:  Normal Distribution
+
+## Overview
+
+* Normal distributions are continuous distributions
+
+* All normal distributions have the same overall shape:  symmetric, unimodal, bell-shaped
+
+* The shape of the normal density curve is completely determined by its mean ($\mu$) and its standard deviation ($\sigma$):
+
+$$f(x) = \frac{1}{\sigma\sqrt{2\pi}} e^{-\frac{1}{2}\left(\frac{x-\mu}{\sigma}\right)^2}$$
+* The mean $\mu$ is located at the center and the standard deviation $\sigma$ controls the spread.
+
+```{r normal-density}
+mu <- 3
+sigma <- .5
+mu2 <- 7
+sigma2 <- 2
+
+gnorm(mu=mu,sigma=sigma,a=-10,b=20,color="blue", fill=NULL,title=TRUE) +
+  stat_function(fun = dnorm, n = 200, args = list(mean = mu2, sd = sigma2), color="magenta")
+```
+
+
+## Normal Probabilities
+
+Suppose that $X \sim N(\mu, \sigma)$ - this means the random variable $X$ follows a normal distribution with mean $\mu$ and standard deviation $\sigma$.
+
+We can calculate probabilities for a Normal distribution using R:
+
+$$P(a \leq X \leq b)$$
+This is the area under the density curve between $b$ and $a$
+
+```{r normal-probabilities}
+mu <- 2
+sigma <- 1
+a <- 0
+b <- 4
+
+(prob <- pnorm(b, mean=mu, sd=sigma, lower.tail=TRUE) - pnorm(a, mean=mu, sd=sigma, lower.tail=TRUE))
+
+ggplot(data.frame(x = c(mu-4*sigma, mu+4*sigma)), aes(x)) +
+  stat_function(fun = dnorm, args = list(mean=mu, sd=sigma)) + 
+  stat_function(fun = dnorm, args = list(mean=mu, sd=sigma),
+                xlim = c(a,b),
+                geom = "area",
+                fill="magenta") +
+  geom_vline(xintercept=c(a,b), linetype="dashed",color="red") +
+  ggtitle(str_c("P(",a," < X < ", b, ") = ", round(prob,3)),
+          subtitle =str_c("X ~ N(", mu, ", ", sigma, ")"))
+
+```
+
+* A *standard normal distribution* is a normal distribution with mean = 0 and standard deviation = 1
+
+*  If $X \sim N(\mu, \sigma)$, then $Z = \left(\frac{X-\mu}{\sigma}\right) \sim N(0, 1)$
+
+#### Simple Normal Calculation example
+
+The weights of packets of cookies produced by a certain manufacturer have a normal distribution with a mean of 202 g and a standard deviation of 3 g. What is the weight that should be sampled on the packet so that only 1% of the packets are underweight?
+
+* $X \sim N(202, 3)$, want $P(X < a) = 0.01$  
+
+```{r simple-normal}
+## This gives the 99th percentile of a N(202, 3) distribution
+qnorm(0.01, mean=202, sd=3, lower.tail=TRUE)
+
+pnorm(195.021, mean=202, sd=3)
+
+rnorm(10, mean=202, sd=3)
+
+hist(rnorm(10000, mean=202, sd=3))
+```
+
+
+## Normal approximation to the binomial distribution
+
+- If $n$ is large, and $p$ is not too close to 0 or 1, the binomial distribution can be approximated by the normal distribution  
+    - Under the assumptions above, if $X \sim Bin(n,p)$, then $X \stackrel{approx}{\sim}N(np, \sqrt{np(1-p)})$
+    
+
+```{r normal-approx-good}
+## Assumptions satisfied
+n <- 1000
+p <- .5
+gbinom(n,p,scale=TRUE) +
+  stat_function(fun = dnorm, args = list(mean=n*p, sd=sqrt(n*p*(1-p))), color="magenta",size=2)
+
+### check the accuracy of normal approximation 
+df <- tibble(binomial = pbinom(0:n, n, p), 
+  normal = pnorm(0:n,mean=n*p, sd=sqrt(n*p*(1-p))))
+ggplot(df, aes(binomial, binomial-normal)) +
+  geom_point() 
+```
+
+```{r normal-approx-bad}
+## Assumptions NOT satisfied
+n <- 100
+p <- .01
+gbinom(n,p,scale=TRUE) +
+  stat_function(fun = dnorm, args = list(mean=n*p, sd=sqrt(n*p*(1-p))), color="magenta",size=2)
+```
+
+
+
+
+
+
+
+

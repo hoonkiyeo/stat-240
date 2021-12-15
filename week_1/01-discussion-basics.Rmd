@@ -1,0 +1,54 @@
+---
+title: "Discussion 1"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message=FALSE, warning=FALSE)
+library(tidyverse)
+```
+
+## Preliminaries
+
+Read the instructions.  
+Create discussion folders and change browser settings if needed.  
+Download the files `01-discussion-basics.Rmd` and `lake-mendota-clean-2020.csv` to your `COURSE/Discussion/01-Discussion/` directory.
+
+## Questions
+
+### Question 1
+
+Set the `01-Discussion` directory to be be your *working directory*.
+Type `getwd()` in the Console and verify that you see that the working directory is set to be `01-Discussion`.
+If not, learn how to set the working directory from someone in your group or the TA.
+
+When you knit this document,
+the following R chunk will print your working directory to the output document.
+
+```{r getwd, echo=TRUE, results='asis'}
+getwd()
+```
+
+### Question 2
+
+The following R chunk will read the data.
+The `names()` command will print the names of the variables in the data frame.
+
+Replace the text XXX below with the correct numbers.
+
+```{r read-data}
+mendota <- read_csv("lake-mendota-clean-2020.csv")
+names(mendota)
+```
+
+#### Response
+
+The Lake Mendota data set has XXX variables and the first variable (next to the `[1]`) is named XXX.
+
+
+## Submission
+
+Once you have completed all of the questions, knit the document.
+This should create an HTML document in your `01-Discussion` folder.
+
+Go to the Canvas course web page, find the Assignments section in the left panel, and upload both your edited `01-discussion-basics.Rmd` and `01-discussion-basics.html` files.

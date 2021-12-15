@@ -1,0 +1,106 @@
+---
+title: "readr and lubridate"
+author: "Jessi Kehe"
+output: html_document
+---
+
+### Setup details
+
+* You will need the packages **tidyverse** and **lubridate** for this lecture. 
+
+* Put data file at "../../data/readr_example.txt"
+
+* Be sure to read R4DS Chapter 11 for information on **readr** and Chapter 16 for information on **lubridate**
+
+* We are going to consider a few simple examples to help you get started with **readr** and **lubridate**.  Practice on more complicated examples will come as the semester progresses.
+  
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo=TRUE,message=FALSE,warning=FALSE,cache=TRUE,autodep=TRUE,cache.comments=FALSE)
+library(tidyverse)
+library(lubridate)
+```
+
+
+# readr - importing data
+
+Depending on the format of a data file, different functions are needed to read the data file into and produce a data frame.  Some common options are listed below.
+
+`read_csv()` for comma delimited files 
+
+`read_csv2()` for semicolon separated files
+
+`read_tsv()` for tab delimited files
+
+`read_delim()` for in files with any delimiter
+
+
+```{r readr}
+df1 <- read_delim("C:/stat_240/week_4/readr_example.txt", delim="$")
+df1
+df2 <- read_delim("C:/stat_240/week_4/readr_example.txt", delim="!")
+df2
+df3 <- read_csv("C:/stat_240/week_4/readr_example.txt")
+df3
+
+colnames(df1)
+colnames(df1) <- c("a", "b", "c", "d")
+colnames(df1)
+
+df4 <- read_delim("C:/stat_240/week_4/readr_example.txt", delim="$", skip=1) #let's skip one row
+df4
+
+df5 <- read_delim("C:/stat_240/week_4/readr_example.txt", delim="$", skip=1, col_names = FALSE)
+df5
+colnames(df5) <- c("a", "b", "c", "d")
+df5
+```
+
+
+# lubridate - working with dates and times
+
+#### Dates from strings
+
+```{r date-from-string}
+# Uses the ISO 8601 format where components of a specified date are arranged 
+# from biggest to smallest: year, month, day, hour, minute, second
+date1 <- "February 5 2017"
+class(date1)
+mdy(date1)
+class(mdy(date1))
+```
+
+#### More examples
+
+```{r date-from-string-examples}
+date2 <- "5-2-2017"
+date3 <- "2017, February 5"
+date4 <- "2.2017.5"
+
+dmy(date2)
+mdy(date2) # changed month and day
+ymd(date3)
+myd(date4)
+```
+
+#### Components of dates
+
+```{r date-components}
+test_date <- mdy(date1)
+test_date
+
+year(test_date)
+month(test_date)
+month(test_date, label=TRUE)
+month(test_date, label=TRUE, abbr=FALSE)
+day(test_date)
+wday(test_date)
+wday(test_date, label=TRUE)
+wday(test_date, label=TRUE, abbr=FALSE)
+```
+
+
+
+
+
+
+

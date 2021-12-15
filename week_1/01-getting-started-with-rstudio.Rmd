@@ -1,0 +1,138 @@
+---
+title: "Getting Started with RStudio"
+author: "Jessi Cisewski Kehe"
+date: "Fall 2020"
+output: html_document
+---
+
+
+### Preferences
+
+Let's begin by adjusting some preferences:
+
+* Go to the top panel and select RStudio > Preferences > General Tab
+  - Uncheck the three `Restore' boxes
+  - Set ‘Save Workspace to .RData on exit’ to *never*
+  - Click `Apply' then `OK`
+
+
+### Installing Packages
+
+R packages are collections of functions that can be useful for our analyses.  They include documentation, sample code, and datasets for learning how the functions work.  We will be using the *tidyverse* package so let's install it.
+
+1. Go to the lower right panel and select the 'Packages' tab
+2. Click the 'Install' button on the top left of the Packages tab
+3. Type 'tidyverse' in the box designated for packages
+4.  Be sure the 'Install dependencies' box is checked
+5. Click 'Install'
+
+You will see some things happening in your console until eventually the package is installed.  Yay!
+The *tidyverse* package will now appear as an option in your 'Packages' tab.  
+
+Even though the packages is *installed*, if you want to use it in your code, you will need to load it into your R environment.  You can do this by checking the box next to the package name in the package code.  However, I recommend instead loading packages using the `library(package-name)`; otherwise you will have issues knitting your R Markdown document.  This approach is also better for reproducibility.
+
+```{r packages}
+library(tidyverse)
+```
+
+
+### Coding in R
+
+Learning a new programming language can be frustrating, but keep with it because you will catch on with practice.  You can do lots of cool things with R, but let's begin by getting a sense of some simple things that R can do.  
+
+#### R as a calculator
+R can be used for basic calculations like arithmetic:
+
+```{r arithmetic}
+2 + 4*5 - 8/4
+5^4
+pi/2
+```
+
+#### Assignment statements and call expressions
+
+Assignment statements have the form `object_name <- any-expression`
+
+  - These statements perform the action of assigning the value on the right of the `<-` to the object name on left.  
+  - Object names need to start with a letter and can include letters, numbers, `_`, and `.`.  Its often a good idea to make it descriptive so you know what it is referring to after returning to old code.  Trust me, this can save you lots of time later when you are trying to figure out the difference between `x1`and `x2` from code you developed months (or years) ago...  
+  - When R sees the `object_name`, it interprets as the value `any-expression`  
+  - `=` can often be used instead of the `<-`, but generally the latter is recommended
+
+For example, suppose we assign the following values to variables that are ultimately used to calculate the tip for a meal at a restaurant.
+```{r assignment}
+price_of_meal <- 15
+tip_percent <- 20
+tip <- price_of_meal * tip_percent/100
+tip
+```
+
+### Call Expressions
+
+In a call expression, you need to specify the function to call along with any required arguments. Let's suppose we want to find the maximum value of a vector.  We can use the `max()` function and input a vector like we do in the following chunk.
+```{r max}
+x <- c(1, 4, -2, -2, 5, 12, 3, 8, 2) # A vector of numbers
+x
+max(x) # Function `max` with the vector `x` as the argument
+?max # A `?` followed by the name of a function opens documentation on the function in the 
+      # 'Help' tab in the lower right panel
+```
+
+
+### Creating Plots
+
+We'll be using a package within *tidyverse* called *ggplot2* for creating plots and visualizations.  Many more details will come as the semester progresses, but let's get started by creating a plot.
+
+R has some built-in datasets.  One such dataset is called `cars` which has two variables `speed` and `dist`.  To learn more about `cars`, run `?cars` in your console. The following description is provide:
+> The data give the speed of cars and the distances taken to stop. Note that the data were recorded in the 1920s.
+```{r cars}
+str(cars)
+```
+
+Suppose we want to plot `dist` vs. `speed`.  We can use the `ggplot()` function to do this.  ggplot uses a grammar of graphics that builds a graphic in layers.  There are three main components to a plot:  data, aesthetics (aes), and geometric objects (geom).  
+
+First, we specify the data layer and the aesthetics with `aes()`. This defines a mapping from the specified dataset to various visual properties.  In the code below, we the `speed` variable is mapped to the x position, and the `dist` variable is mapped to the y position.  So far we haven't added any geom so there are no geometric features included.  
+```{r ggplot-aes}
+ggplot(cars, aes(x=speed, y=dist))
+```
+
+The geom function is used to add different layers to your plot.  For example, you may want to add the data points.  Let's do that using `geom_point()`.
+```{r ggplot-point}
+ggplot(cars, aes(x=speed, y=dist)) +
+  geom_point()
+```
+
+We could also connect the points in our dataset with `geom_line()`.
+```{r ggplot-line}
+ggplot(cars, aes(x=speed, y=dist)) +
+  geom_point() + # adds points to plot
+  geom_line()
+```
+
+If interested in overall patterns in our data, we could add a smooth line fit with `geom_smooth()`.
+```{r ggplot-smooth}
+ggplot(cars, aes(x=speed, y=dist)) +
+  geom_point() +
+  geom_line() +
+  geom_smooth(se=FALSE)
+```
+
+Or we can add a straight line with `geom_smooth()`.
+```{r ggplot-straight}
+ggplot(cars, aes(x=speed, y=dist)) +
+  geom_point() +
+  geom_line() +
+  geom_smooth(se=FALSE) +
+  geom_smooth(se=FALSE, method="lm")
+```
+
+
+It can get confusing if we use the same colors for both lines so let's change one.
+```{r ggplot-striaght-smooth}
+ggplot(cars, aes(x=speed, y=dist)) +
+  geom_point() +
+  geom_line() +
+  geom_smooth(se=FALSE) +
+  geom_smooth(se=FALSE, method="lm", color="magenta")
+```
+
+

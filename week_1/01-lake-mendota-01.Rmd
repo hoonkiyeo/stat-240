@@ -1,0 +1,186 @@
+---
+title: "Lake Mendota Freezing and Thawing"
+author: "Jessi Cisewski Kehe"
+date: "Fall 2020:  Week 1"
+output: html_document
+---
+
+This R Markdown document was adapted from a document created by Professor Bret Lager.
+
+```{r setup, include=FALSE}
+## <- These hash tags allow you to comment-out the code; you can use multiple depending on your preference but only one is needed.
+## 'knitr' is the package that turns R Markdown into a document
+## The following command sets some options for this R Markdown file
+knitr::opts_chunk$set(echo = TRUE, message=FALSE, warning=FALSE)
+## The `library()' function loads in a package; the package must already be installed.
+## `tidyverse' is the name of the package we are loading next.  In particular, we will be using ggplot2.
+library(tidyverse)
+
+## We will also load the package called `lubridate.'  It is a part of `tidyverse', but it is not loaded in the core.  
+##  (This means we need to load it separately when we want to use it in our code.)
+## The 'lubridate' package has useful functions for dates.
+library(lubridate)
+```
+
+
+### Read the data
+
+The following R chunk has one line of code that will read in the data set.
+Along with the code I added many comments to explain what is happening.
+
+Each code chunk begins with three consecutive back ticks at the start of a line.
+
+The left brace `{` followed by the letter `r` means that the code should be interpreted as r code.
+
+The name `read-data` is the name of the chunk.
+Naming chunks is helpful when trying to find errors.
+Other knitr options could be set before the right brace `}`, but are not in this example.
+
+```{r read-data}
+## `ice' is a new object. 
+## The `<-' assigns the loaded data set to the object name `ice.'
+## You will see an '=' instead of a `<-' as the assignment operator; I use both, but many R books recommend the `<-.'
+## read_csv() is a function in the tidyverse for reading in .csv files.
+## There is a base R function named read.csv(). Use read_csv() instead.
+## The argument to read_csv() is a path to the file with the data
+## The '..' means go up a directory
+## Use a '/' after a directory
+##   (Windows uses backslashes, but slashes work in R for any computer system)
+## The result of the code below is to create a data frame named ice
+##   by reading in the data in the file.
+ice <- read_csv("C:/stat_240/lake-mendota-year-clean.csv")
+```
+
+##### str( ) and spec( )
+
+The R command `str()` is useful to check the structure of a data set (or other R objects).
+This code displays the structure of the data set.
+
+The command `spec()` is part of the tidyverse and displays how each variable is specified after reading in.
+
+```{r}
+str(ice)
+spec(ice)
+```
+
+### Plots
+
+#### One-variable Plots
+
+The variable *days* is the number of days that Lake Mendota was frozen each winter.
+
+This variable can be displayed with many different types of graphs.
+Every plot we make using the **ggplot2** package starts with the function `ggplot()` which takes the name of a data frame as its first argument.
+Then, new layers can be added to the plot.
+This almost always includes at least one geometric element, a function that begins with `geom_` followed by a descriptive name.
+Most plots will include multiple layers to add labels, modify previous layers, add more features to the plot, and so on.
+Note that the `+` sign must be at the end of each line, not the beginning of the line.
+(If not, R thinks you were done adding layers the first time there is not a plus-sign at the end.)
+
+#### Histogram
+
+We can use ggplot to make a basic histogram like the following.
+
+```{r histogram}
+ggplot(ice) +
+  geom_histogram(aes(x=days))
+```
+
+This histogram changes 
+
+  * the labels with  `ggtitle()`, `xlab()`, and  `ylab()`
+  
+  * the widths of the bars with the `binwidth=` option 
+  
+  * the boundaries where the bars are set with the `boundary=` option 
+  
+  * the color of the bar interiors with the `fill=` option
+  
+  * the color of the bar outlines with the `color=` option
+
+```{r histogram-fancy}
+ggplot(ice) +
+  geom_histogram(aes(x=days),
+                 fill="hotpink",
+                 color="black",
+                 binwidth=7,
+                 boundary=0) +
+  xlab("Total days frozen") +
+  ylab("Counts") +
+  ggtitle("Lake Mendota Freeze Durations, 1852-2019")
+
+
+ggplot(ice) +
+  geom_histogram(aes(x=days),
+                 fill = "blue",
+                 color = "black",
+                 binwidth = 9,
+                 boundary=0) +
+  xlab("Total days frozen") +
+  ylab("Counts") +
+  ggtitle("Lake Mendota Freeze Durations, 1852-2019")
+```
+
+#### Density Plot
+
+A density plot can be thought of as a smoothed histogram.  
+We can display a density plot using `geom_density().`
+
+```{r density}
+ggplot(ice) +
+  geom_density(aes(x=days),
+               fill="hotpink",
+               color="black") +
+  xlab("Total days frozen") +
+  ylab("Density") +
+  ggtitle("Lake Mendota Freeze Durations, 1852-2019")
+```
+
+#### Boxplot
+
+A boxplot requires a categorical variable for the x argument
+and a quantitative variable for the y argument.
+
+Each box outlines the middle 50% of the observations in the corresponding category:
+
+* the bottom of the box (i.e., the lower hinge) gives the 25th percentile (the first quartile, Q1)
+
+* the middle bar give the median (the 50th percentile)
+
+* the top of the bax (i.e., the upper hinge) gives the 75th percentile (the third quartile, Q3)
+
+The lower vertical line (i.e., the lower whisker) reaches down to the minimum value of the observations, but
+will not drop below Q1 - 1.5 x IQR, where IQR = Q3 - Q1 is the inter-quartile range.
+
+Similarly, the higher vertical line (i.e., the upper whisker) reaches up to the maximum value of the observations, but
+will not go above Q3 + 1.5 x IQR.
+
+Any points plotted below or above the vertical lines indicate observations that are 
+below or above the noted ranges.  These points may be considered outliers.
+
+
+```{r boxplot}
+ggplot(ice) +
+  geom_boxplot(aes(x=as.character(decade),y=days),
+               fill="hotpink",
+               color="black") +
+  ylab("Total days frozen") +
+  xlab("Decade") +
+  ggtitle("Lake Mendota Freeze Durations, 1852-2019")
+```
+
+### Scatter Plot with a Trend Line Added
+
+To create a scatter plot you can designate the `x` and `y` variables in `aes()`.
+Then add points using geom_point().
+If you want the points connected, you can also include `geom_line()`.
+Using `geom_smooth()` will add a smooth line to the plot, which adapts to the data.
+```{r plot}
+ggplot(ice, aes(x=year1,y=days)) +
+  geom_point() +
+  geom_line() +
+  geom_smooth(se=FALSE, span=.1) + #span =  #method="lm"
+  xlab("Year") +
+  ylab("Total Days Frozen") +
+  ggtitle("Lake Mendota Freeze Durations, 1852-2019")
+```

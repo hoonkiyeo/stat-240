@@ -1,0 +1,202 @@
+---
+title: "Getting Started with stringr"
+author: "Jessi Kehe"
+output: html_document
+editor_options: 
+  chunk_output_type: inline
+---
+
+This R Markdown document was adapted from documents created by Professor Bret Larget.
+
+
+### Setup details
+
+* You will need the packages **tidyverse** and **stringr** for this lecture. (**stringr** should load with **tidyverse**, but if not, run `library(stringr)` separately)
+
+* Be sure to read R4DS Chapter 14 for information on **stringr** 
+
+  
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo=TRUE,message=FALSE,warning=FALSE,cache=TRUE,autodep=TRUE,cache.comments=FALSE)
+library(tidyverse)
+```
+
+
+# Lecture:  Strings and Regular Expressions
+
+## Overview
+
+This lecture will give examples of working with strings and regular expressions.
+
+### Data
+
+```{r color-data}
+df_colors = tibble(
+  index = seq_along(colors()), #length of seq based on length of argument
+  colors = colors()) #colors() are built-in color names 
+
+df_colors
+```
+
+## Problems
+
+> Find the shortest and longest color names
+
+- use `str_length()` to find the length of each string  
+- then use `slice_max()` or `slice_min()` to identify the extremes  
+
+```{r short-long}
+df1 <- df_colors %>%
+  mutate(length = str_length(colors))
+head(df1)
+
+df1long <- df1 %>%
+  slice_max(n=1, order_by=length)
+df1long
+
+df1short <- df1 %>%
+  slice_min(n=1, order_by=length)
+df1short
+
+```
+
+- The longest color name is `r df1long$colors` with a length of `r df1long$length` characters.  
+- The shortest color names are `r df1short$colors[1]` and `r df1short$colors[2]`, each with a length of `r df1short$length[1]`.
+
+
+
+> Make a bar plot of the string lengths
+
+- Note use of `scale_x_continuous()` to change the default breaks and labels in the plot.
+
+```{r length-plot}
+ggplot(df1, aes(x=length)) +
+  geom_bar(fill=df1long$colors,color="black") +
+  xlab("Word Length") +
+  scale_x_continuous(labels=3:20,breaks=3:20) +
+  ggtitle("R Colors Name Length Distribution")
+```
+
+
+
+> Find the color names of length 8. Report the number, and the first and last color name (alphabetically).
+
+```{r length-8}
+df_colors %>%
+  filter(str_length(colors) == 8) %>%
+  summarize(n = n(),
+            first = min(colors),
+            last = max(colors))
+
+#Look at all colors with string length 8 in order by color name
+df_colors %>%
+  filter(str_length(colors) == 8) %>%
+  arrange(colors)
+```
+
+> How many color names begin and end with the same letter? Report the number and the first and last alphabetically.
+
+- `str_sub(string, start, end)` returns the sub string from `start` to `end`
+    - Use negatives to count from the end.
+    - Can also be used to assign values by position
+    
+```{r same-first-last}
+df2 <- df_colors %>%
+  mutate(first = str_sub(colors,1,1),
+         last = str_sub(colors,-1,-1)) %>%
+  filter(first == last)
+df2
+
+df2 %>%
+  summarize(n=n(), first = min(colors), last = max(colors))
+```
+
+
+
+##### Here is a fancy regular expression ("regexp") to find colors that begin and end with the same letter
+
+```{r same-first-last-fancy}
+df2b <- df_colors %>%
+  filter(str_detect(colors, "(^[a-zA-Z]).*\\1$"))
+
+#Read carefully chapter 14.3
+#\\1 - last character
+
+df2b
+```
+
+
+> Find all color names that begin with a letter from "aeiou" and end with a letter from "aeiouy". Modify so that the first letter is capitalized and the last two letters are each replaced by X.
+
+- Regular expression special symbols:
+    - ^ is the beginning of the string
+    - $ is the end of the string
+    - . is any character (except a newline)
+    - * means repeat 0 or more times
+    - [...] matches any character from between the [ and ]
+- `str_c()` combines string arrays, element by element
+- `str_detect()` returns TRUE or FALSE that it detects the pattern in the string
+- `str_to_upper()` changes a letter to upper case
+- `str_sub()` may also be used for assignment
+    
+```{r vowel}
+df3 <- df_colors %>%
+  filter(str_detect(colors, "^[aeiou].*[aeiouy]$"))
+
+df3
+
+df3 <- df3 %>%
+  mutate(new_colors = str_c(str_to_upper(str_sub(colors,1,1)),
+                            str_sub(colors,2,-3), #start and end points are inclusive
+                            "XX"))
+
+df3
+
+```
+
+> Find all colors names which begin with a vowel, end with a consonant, have no digits in the name, and have between 4 and 10 total characters
+
+- Regular expression `\d` stands for a digit.
+- In an R string, need to double the `\` in order to represent the literal `\`.
+- A ^ right after [ negates the matches between the [ and ]
+- {n} repeats the previous pattern n times
+- {m,n} repeats the previous pattern from m to n times
+
+```{r vowel-consonant}
+df4 <- df_colors %>%
+  filter(!str_detect(colors,"\\d")) %>% # no digit
+  filter(str_detect(colors, "^[aeiou].{2,8}[^aeiouy]$")) %>%
+  mutate(length = str_length(colors)) # added to check the length
+df4
+```
+
+> Find all color names that repeat a letter twice in a row.
+
+- Surrounding a pattern with () changes the order of preference and forms a group.
+- Whichever pattern matches a group may be referred to by `\x` where `x` is the number of the group
+    - For example, `([a-e])\1` will match double letters from a through e.
+    - But in a string in R, we need to precede `\` by another `\` to indicate we mean the literal `\`. So, `"([a-e])\\1"`
+    
+```{r repeat}
+df5 <- df_colors %>%
+  filter(str_detect(colors, "([a-zA-Z])\\1")) #`\\1` is called a backreference
+df5
+```
+
+> Find all color names which contain the substrings "red", "blue", or "green"
+
+- separate alternative patterns with a `|`
+
+```{r rgb}
+df6 <-df_colors %>%
+  filter(str_detect(colors, "red|blue|green"))
+df6
+```
+
+
+
+
+
+
+
+

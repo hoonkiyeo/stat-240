@@ -1,0 +1,159 @@
+---
+title: "Lake Mendota Graphs"
+author: "Jessi Cisewski Kehe"
+date: "Fall 2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message=FALSE, warning=FALSE)
+library(tidyverse)
+library(lubridate)
+```
+This R Markdown document is adapted from a document created by Professor Bret Lager.
+
+## Read Data:  Lake Mendota (clean)
+
+Make sure to put R Markdown file and data file in the same folder.  If you have trouble reading in the data, make sure your working directory matches the location of the data file.  Your current working directory can be determined by running `getwd()` in the console.
+
+```{r read-data}
+mendota <- read_csv("lake-mendota-clean-2020.csv") 
+```
+
+## spec() and str()
+
+The command `spec()` is part of the tidyverse and displays how each variable (i.e., column) is **spec**ified after reading into RStudio.
+
+The R command `str()` is useful to check the **str**ucture of a data set (or other R objects).
+This code displays the structure of the data set.
+# ** = Bold
+
+```{r str}
+spec(mendota)
+str(mendota)
+```
+## What to do with the data?
+
+We have now loaded our data, what sorts of questions might we want to address using them?  Let's explore a few questions.
+
+## Question 1
+
+> How do the total number of days that Lake Mendota is closed with ice vary over time?
+ 
+  - That is, do we see any trend across time?  Do the total number of days that Lake Mendota is closed with ice increase or decrease?
+  - With any data analysis, it is important to explore your data.  Visualization can help to reveal interesting features or possible issues.
+  - We will use `ggplot()` to create a scatter plot of the data of the `days` variable plot by `year1`.  Then we will add a smooth line to reveal any pattern across time.
+
+```{r q1}
+## first argument to ggplot is a data frame
+## the second argument is a mapping of the aesthetics
+ggplot(data = mendota, mapping = aes(x=year1,y=days)) +
+  ## add points to the plot with the x and y aesthetics
+  geom_point() +
+  ## draw lines between consecutive points
+  geom_line() +
+  ## add a smooth trend line
+  geom_smooth(se=FALSE) +
+  ## change the label on the x axis
+  xlab("Year") +
+  ## change the label on the y axis
+  ylab("Total Days Frozen") +
+  ## add a title
+  ggtitle("Lake Mendota Freeze Durations, 1855-2020")
+```
+
+## Question 2
+
+> What does the distribution of the number of days that Lake Mendota is closed by ice look like?
+
+  - Each variable of our dataset has its own column.  Variables have different values and you can roughly think of the distribution as telling us the frequency of observations that have a value. (We'll get a bit more technical about this later.)
+  - Histograms are a common way to display distributions of numerical data.
+
+### Histogram with `geom_histogram()`
+
+```{r histogram}
+ggplot(mendota, aes(x=days)) + #we don't need data = and mapping =
+  geom_histogram() + # default count (ylab)
+  xlab("Total Days Frozen") +
+  ggtitle("Lake Mendota Freeze Durations, 1855-2020")
+```
+
+- Histograms are for numerical data.
+- A histogram has a bar for each interval that counts the number of observations in the interval.
+- Areas are proportional to the counts
+- Typically, all the bins have the same width
+- Boundaries can be specified with the arguments:
+    - `boundary=` or
+    - `center=`
+- Widths of bins can be specified with the argument `binwidth=`
+- The number of bins can be specified with the argument `bins=` (the default is 30 bins)
+- Run `?geom_histogram` in the console to open the documentation in the Help panel
+
+
+The code below produces a histogram with some different settings than above. Notice the bins are a bit clearer and the shape is not as choppy.   
+```{r histogram-better}
+ggplot(mendota, aes(x=days)) +
+  geom_histogram(center=70,binwidth=7,fill='hotpink',color='black') +
+  xlab("Total Days Frozen") +
+  ggtitle("Lake Mendota Freeze Durations, 1855-2020")
+```
+
+#### A histogram with too few bins
+Selecting appropriate settings for the bins is not easy and it can dramatically affect the appearance of the histogram.  The histogram below has too few bins (the bins were set to be too wide) and we cannot evaluate the shape of the distribution because it has been over-summarized.
+```{r histogram-bad-1}
+ggplot(mendota, aes(x=days)) +
+  geom_histogram(center=70,binwidth=60,fill='hotpink',color='black') +
+  xlab("Total Days Frozen") +
+  ggtitle("Lake Mendota Freeze Durations, 1855-2020")
+```
+
+#### A histogram with too many bins
+
+We can also error in the direction of too many bins!  In the histogram below, the bin width is too small revealing many spikes.  Again we cannot evaluate the shape of the distribution because there is too much detail.
+
+```{r histogram-bad-2}
+ggplot(mendota, aes(x=days)) +
+  geom_histogram(center=70,binwidth=1,fill='hotpink',color='black') +
+  xlab("Total Days Frozen") +
+  ggtitle("Lake Mendota Freeze Durations, 1855-2020")
+```
+
+### Density Plot with `geom_density()`
+
+```{r density}
+ggplot(mendota) +
+  geom_density(aes(x=days),
+               fill="hotpink",
+               color="black") +
+  stat_density(aes(x=days),adjust = 2, color="black", fill="cyan",alpha=.2) +
+  xlab("Total days frozen") +
+  ylab("") +
+  ggtitle("Lake Mendota Freeze Durations, 1855-2020")
+```
+
+- A density plot may be thought of as an average of a lot of histograms
+- It avoids the issues of picking bin widths and boundaries (but there is a smoothing parameter that needs to be specified)
+- The total area under the curve is one (it is a density!)
+
+### Boxplot with `geom_boxplot()`
+
+A boxplot requires a categorical variable for the x argument and the quantitative variable is y.
+
+```{r boxplot}
+ggplot(mendota) +
+  geom_boxplot(aes(x=as.character(decade),y=days),
+               fill="yellow",
+               color="black") +
+  ylab("Total days frozen") +
+  xlab("Decade") +
+  ggtitle("Lake Mendota Freeze Durations, 1855-2020")
+```
+   
+   - This boxplot gives a summary of the distribution of the total number of days that Lake Mendota is closed with ice for each decade.
+
+
+## Question 3
+
+> What is the median *first* date of the winter that Lake Mendota freezes? Graph the difference between the actual first date for each year and this median (i) in a density plot and (ii) in a scatter plot versus year.
+
+We'll address this in the next lecture!

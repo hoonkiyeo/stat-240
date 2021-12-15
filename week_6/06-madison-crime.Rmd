@@ -1,0 +1,536 @@
+---
+title: "Madison Crime Data"
+author: "Jessi Kehe"
+output: html_document
+---
+This R Markdown document was adapted from documents created by Professor Bret Larget.
+
+### Setup details
+
+* You will need the packages `tidyverse`, `lubridate`, and `stringr` for these lectures.  Make sure to install them if you haven't already.  
+
+* This assumes you have the R script `viridis.R` two steps back from the working directory (`"../../scripts/viridis.R"`).  Be sure to adjust the code if you have this script in a different location.
+
+* The following data files will be used and are assumed to be located two steps back from the working directory in a folder called `data/`.  Be sure to adjust the code if you have the data files in a different location.  
+`"../../data/Police_Incident_Reports_2020-09-28.csv"`  
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo=TRUE,message=FALSE,warning=FALSE,cache=TRUE,autodep=TRUE,cache.comments=FALSE)
+library(tidyverse)
+library(lubridate)
+## Note: this code assumes viridis.R is two steps up the file directory tree in a `scripts` folder
+source("C:/stat_240/scripts/viridis.R")
+```
+
+
+# Lecture:  Madison Crime Data Exploration
+
+
+## Madison Police Incident Reports
+
+- The data set is a summary of police incident reports in the city of Madison, Wisconsin.
+
+- The source of the data is [http://data-cityofmadison.opendata.arcgis.com/datasets/police-incident-reports](http://data-cityofmadison.opendata.arcgis.com/datasets/police-incident-reports)
+
+- The data website notes, "Incidents listed are selected by the Officer In Charge of each shift that may have significant public interest. Incidents listed are not inclusive of all incidents."  
+  - This means we do not have a census of incidents nor a random sample so we should be cautious about drawing conclusions from these data
+
+- The data may be downloaded as a CSV file.
+
+- The web page describes these variables:
+    - Address
+    - Arrested
+    - CaseNumber
+    - DateModified
+    - Details
+    - IncidentDate
+    - IncidentID
+    - IncidentType
+    - ReleasedBy
+    - Suspect
+    - Victim
+
+
+
+```{r read-data}
+police_orig <- read_csv("C:/stat_240/data/Police_Incident_Reports_2020-09-28.csv")
+
+head(police_orig)
+str(police_orig)
+
+
+# Need to format the date variables
+police_orig <- police_orig %>%
+  mutate(IncidentDate = as_datetime(IncidentDate)) %>% # Format as_datetime
+  mutate(DateModified = as_datetime(DateModified)) 
+
+head(police_orig) # POSIXct = date-time 
+str(police_orig)
+```
+
+### Initial Explorations
+
+
+> Check if the `IncidentID` uniquely identifies an observation
+
+```{r distinct-id}
+police_orig %>%
+  nrow()
+
+police_orig %>%
+  select(IncidentID) %>%
+  distinct() %>%
+  nrow()
+```
+
+- Yes, all incident IDs are distinct
+
+
+
+>  What are the different `IncidentType` values?  That is, what types of incidents are reported?
+
+```{r IncidentType}
+police_orig %>%
+  count(IncidentType) %>%
+  arrange(desc(n)) %>%
+  print(10)
+
+police_orig %>%
+  count(IncidentType) %>%
+  slice_max(order_by=n,n=10)
+
+police_orig %>%
+  count(IncidentType) %>%
+  slice_min(order_by=n,n=10)
+```
+
+- 99 types
+- most frequent is Robbery, 2563 times
+
+
+
+> How many case-numbers match the pattern 4 digits - 1 or more digits?  
+
+```{r count-case-number-pattern}
+police_orig %>%
+  mutate(case_match = 
+           # str_detect(CaseNumber,"^[0-9]+-[0-9]?$")) %>%  # Matches one+ digits - zero or one digits
+           str_detect(CaseNumber,"^[0-9]+-[0-9]{0,1}$")) %>%
+  filter(case_match) 
+
+
+police_orig %>%
+  mutate(case_match = 
+           # str_detect(CaseNumber,"^[0-9]+-[0-9]+$")) %>%  # Matches one+ digits - one+ digits
+           # str_detect(CaseNumber,"^[0-9]{4}-[0-9]+$")) %>%  # Matches four digits - one+ digits
+           str_detect(CaseNumber,"^[0-9]{4}-[0-9]{5,6}$")) %>% # Matches four digits - five-six digits
+           # str_detect(CaseNumber,"^[0-9]{4}-[0-9]{6}$")) %>% # Matches four digits - six digits
+  filter(!case_match) %>%
+  select(IncidentID,CaseNumber,IncidentDate)
+```
+
+- It is apparent that a valid case number is a four digit number matching the year, followed by a dash, and then a number of digits, usually 5 or 6
+
+- Patterns that do not match this can mismatch in a number of different ways.
+
+- Some should be corrected
+
+
+> What is the range of dates?
+
+```{r date}
+# Look at date range
+police_orig %>%
+  summarize(min = min(IncidentDate),
+            max = max(IncidentDate))
+
+police_orig %>%
+  slice_max(n=10, order_by=IncidentDate) 
+
+police_orig %>%
+  slice_min(n=10,order_by=IncidentDate)
+```
+
+- There appears to be some problems with some of the dates
+
+
+> How does the case number relate to the date of the incident? Are there any errors?
+
+```{r explore-IncidentID-order}
+date_temp <- police_orig$IncidentDate[1]
+date_temp
+date_temp - now()
+
+## See if IncidentID is chronological
+ggplot(police_orig, aes(x=IncidentDate-now(),y=as.numeric(IncidentID))) +
+  geom_point()
+```
+
+- As IncidentDate increases, the IncidentID generally increases  
+- We observe several points that do not follow this pattern
+
+
+
+
+
+
+
+
+
+
+# Lecture:  Incident Dates and Case Numbers
+
+- We saw that one date is in the future and a few are far in the past.
+
+- Let's flag cases where `IncidentDate` is after the present or the year does not match the first four characters of the `CaseNumber`.
+
+```{r clean-dates}
+## There are some clear outliers where the IncidentDate appears to be wrong.
+
+bad_date <- police_orig %>%
+  filter(IncidentDate > now() | # dates in the future
+           str_sub(CaseNumber,1,4) != year(IncidentDate)) %>% # first part of case number does not match incident date
+  select(IncidentID,CaseNumber,IncidentDate,DateModified)
+bad_date
+
+
+## Change all CaseNumbers which begin 0X- to 200X-
+## Change CaseNumbers which begin with two or three digits and then a dash
+##   to match the year of the date before the dash
+## Turn "none"'s into NAs
+## Turn CaseNumbers that have only zeros after the - into NAs
+police <- police_orig %>%
+  mutate(CaseNumber = case_when(str_detect(CaseNumber,"^0[0-9]-") ~ str_c("20",CaseNumber), 
+    str_detect(CaseNumber,"^[0-9]{2}-") ~ str_c(year(IncidentDate),str_sub(CaseNumber,3,-1)),
+    str_detect(CaseNumber,"^[0-9]{3}-") ~ str_c(year(IncidentDate),str_sub(CaseNumber,4,-1)),
+    str_detect(str_to_lower(CaseNumber),"none") ~ as.character(NA), 
+    TRUE ~ CaseNumber)) %>%
+  mutate(CaseNumber = case_when(str_detect(CaseNumber,"-0+$") ~ as.character(NA),
+    TRUE ~ CaseNumber)) 
+
+police %>%
+  filter(IncidentDate > now() |
+           str_sub(CaseNumber,1,4) != year(IncidentDate)) %>%
+  select(IncidentID,CaseNumber,IncidentDate,DateModified)
+## Still issues remaining; would want to ask if year in IncidentDate is more
+## reliable than the first four digits of the CaseNumber
+## If so, we could fix many of these issues
+
+police %>%
+  slice_max(n=1, IncidentDate) #This IncidentDate likely could get corrected to 2017
+```
+
+
+
+
+
+
+
+
+
+
+#  Lecture:  Incident frequency by day of the week
+
+> Do the number of incidents vary by day of the week?  by month?
+
+```{r day}
+week <- police %>%
+  select(IncidentID, IncidentType, IncidentDate) %>%
+  mutate(wday = wday(IncidentDate, label = TRUE, abbr = TRUE),
+         month = month(IncidentDate, label = TRUE, abbr = TRUE))
+
+week %>%
+  count(wday)%>%
+  ggplot(aes(wday,y=n)) +
+  geom_col()
+
+week %>%
+  count(month)%>%
+  ggplot(aes(month,y=n)) +
+  geom_col()
+```
+
+#### Does it vary for traffic-related incidents?
+
+```{r}
+week %>%
+  select(IncidentType) %>%
+  filter(str_detect(IncidentType,"(?i)traffic|drive|accident")) %>%
+  distinct()
+
+week %>%
+  filter(str_detect(IncidentType,"(?i)traffic|drive|accident")) %>%
+  count(wday)%>%
+  ggplot(aes(wday,y=n)) +
+  geom_col()
+
+week %>%
+  filter(str_detect(IncidentType,"(?i)traffic|drive|accident")) %>%
+  count(month)%>%
+  ggplot(aes(month,y=n)) +
+  geom_col()
+```
+
+* You can explore other incident types in a similar manner.
+
+
+
+
+
+
+
+
+
+
+# Lecture:  Incident Types and Times of Day
+
+
+> How do the number of incidents change throughout the day?
+
+We can define different windows of time to analyze the number of incidents:
+
+“overnight” [1am to 5am)  
+“early morning” [5am to 9am)   
+“morning” [9am to 1pm)   
+“afternoon” [1pm to 5pm)   
+“evening” [5pm to 9pm)   
+“late evening” [9pm to 1am)  
+
+```{r incident-time}
+it <- police %>%
+  select(IncidentID, IncidentType, IncidentDate) %>%
+  mutate(hour = hour(IncidentDate),
+         time = case_when(
+           hour < 1 ~ "late evening",
+           hour < 5 ~ "overnight",
+           hour < 9 ~ "early morning",
+           hour < 13 ~ "morning",
+           hour < 17 ~ "afternoon",
+           hour < 21 ~ "evening",
+           TRUE ~ "late evening")) 
+
+## Which time has the most incidents
+it %>%
+  count(time) %>%
+  arrange(desc(n))
+
+ggplot(it, aes(x=time)) +
+  geom_bar() +
+  xlab("Incident Type") +
+  ylab("Count") +
+  ggtitle("Madison Crime Data")
+
+## The barplot is helpful...but the order is a bit difficult to follow
+### how the number of incident change across the day
+## Let's reorder the time variable
+
+it2 <- it %>%
+  mutate(time_order = case_when(
+           hour < 1 ~ 6,
+           hour < 5 ~ 1,
+           hour < 9 ~ 2,
+           hour < 13 ~ 3,
+           hour < 17 ~ 4,
+           hour < 21 ~ 5,
+           TRUE ~ 6), 
+         time = reorder(time, time_order)) 
+str(it2)
+
+
+ggplot(it2, aes(x=time)) +
+  geom_bar() +
+  xlab("Incident Type") +
+  ylab("Count") +
+  ggtitle("Madison Crime Data")
+```
+
+
+> Do the *types* of incidents change throughout the day?
+
+We will put the incident types into some broader categories, and then plot against hour.
+
+```{r incident-types}
+it %>%
+  group_by(IncidentType) %>%
+  summarize(n = n()) %>%
+  arrange(desc(n))
+
+## other types of robbery?
+it %>%
+  select(IncidentType) %>%
+  filter(str_detect(IncidentType, "(?i)robbery")) %>%
+  distinct()
+
+## other types of traffic issues?
+it %>%
+  select(IncidentType) %>%
+  filter(str_detect(IncidentType,"(?i)traffic|drive|accident")) %>%
+  distinct()
+
+## other types of burglaries?
+it %>%
+  select(IncidentType) %>%
+  filter(str_detect(IncidentType,"(?i)burglar")) %>%
+  distinct()
+
+## other types of animals?
+it %>%
+  select(IncidentType) %>%
+  filter(str_detect(IncidentType,"(?i)animal")) %>%
+  distinct()
+
+it3 <- it2 %>%
+  mutate(incident_group = 
+           case_when(
+             str_detect(IncidentType,"(?i)Robbery") ~ "robbery",
+             str_detect(IncidentType,"(?i)Weapons") ~ "weapons",
+             str_detect(IncidentType,"(?i)Battery") ~ "battery",
+             str_detect(IncidentType,"(?i)Theft") ~ "theft",
+             str_detect(IncidentType,"(?i)traffic|drive|accident") ~ "traffic",
+             str_detect(IncidentType,"(?i)burglary") ~ "burglary",
+             TRUE ~ "other"
+           ))
+
+it3 %>%
+  group_by(incident_group, hour) %>%
+  summarize(n = n()) %>%
+  ggplot(aes(x=hour,y=n,color=incident_group)) +
+  geom_line(size=2) +
+  xlab("Hour") +
+  ylab("Count") +
+  ggtitle("Madison Crime Data")
+
+
+it3 %>%
+  filter(incident_group == "other") %>%
+  count(IncidentType) %>%
+  arrange(desc(n))
+
+
+it3 %>%
+  group_by(incident_group, hour) %>%
+  summarize(n = n()) %>%
+  filter(incident_group != "other") %>%
+  ggplot(aes(x=hour,y=n,color=incident_group)) +
+  geom_line(size=2) +
+  xlab("Hour") +
+  ylab("Count") +
+  ggtitle("Madison Crime Data")
+```
+
+
+
+
+
+
+
+
+
+
+# Lecture: Investigating the variable `Arrested`
+
+## Examine a Sample of Arrested Entries
+
+
+Suppose we want to develop a function that attempts to determine the race of the person arrested.
+
+Let's look at a random sample of the suspects.
+
+```{r sample}
+## set.seed to be able to replicate the random sample
+set.seed(1)
+police_1 <- police_orig %>%
+  filter(!is.na(Arrested)) %>%
+  sample_n(size=100) %>%
+  select(IncidentID,Arrested) %>%
+  arrange(as.numeric(IncidentID))
+print(police_1, n=100)
+```
+
+
+## Start building a function to return race
+
+The function below is only to get started - more coding is needed to get it to work as expected.  
+  - Eventually, the last line should return `as.character(NA)` instead of "X"  
+  - To make the function more accurate, add code or modify code to handle new patterns that the existing code does not detect or to correct errors in the existing code.  
+
+```{r race-function}
+## attempt to extract race from an unformatted string
+## in the Madison Crime Incident data
+## x is the input string
+extract_race <- function(x)
+{
+  x_lower <- str_to_lower(x)
+  df <- tibble(x) %>%
+    mutate(race = case_when(
+      is.na(x) ~ as.character(NA),
+      str_detect(str_to_lower(x),"^n/a$") ~ as.character(NA),
+      str_detect(x_lower,"^unknown$") ~ as.character(NA),
+      str_detect(x_lower,"white,") ~ "white",
+      str_detect(x_lower,"[mf]/w") ~ "white",
+      str_detect(x_lower,"w/[mf]") ~ "white",
+      str_detect(x_lower,"black,") ~ "black",
+      str_detect(x_lower,"[mf]/b") ~ "black",
+      str_detect(x_lower,"b/[mf]") ~ "black",
+      str_detect(x_lower,"african") ~ "black",
+      str_detect(x_lower,"asian,") ~ "asian",
+      str_detect(x_lower,"hispanic,") ~ "hispanic",
+      str_detect(x_lower,"[mf]/h") ~ "hispanic",
+      str_detect(x_lower,"h/[mf]") ~ "hispanic",
+      str_detect(x_lower,"latin[oax]") ~ "latinx",
+      TRUE ~ "X"
+    ))
+  return( pull(df,race) )
+}
+
+police_1_test <- police %>%
+  mutate(suspect_race = extract_race(Arrested))
+
+check_id <- 8683 #8977 #8683 #8170
+police_1_test %>%
+  filter(IncidentID == check_id) %>%
+  pull(Arrested)
+
+police_1_test %>%
+  select(IncidentID, suspect_race) %>%
+  filter(IncidentID == check_id)
+
+police_1_test %>%
+  select(suspect_race) %>%
+  table()
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
