@@ -1,8 +1,9 @@
 ---
 author: "Kyle Yeo"
-output: 
+output:
+  pdf_document: default
   html_document:
-    keep_md: true
+    df_print: paged
 ---
 
 ```{r setup, include=FALSE}
@@ -10,6 +11,7 @@ knitr::opts_chunk$set(echo = TRUE, message=FALSE)
 library(tidyverse)
 library(lubridate)
 ```
+
 
 ## Assignment 2
 
